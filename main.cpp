@@ -1,6 +1,5 @@
-#include <iostream>
+#include <chronex/matching/OrderBook.hpp>
 
 int main() {
-    std::cout << "Hello, World!" << std::endl;
-    return 0;
+    chronex::OrderBook orderbook { };
 }
