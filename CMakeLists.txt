@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.28)
 project(ChroneX)
 
+include_directories(include)
+
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 set(CMAKE_CXX_STANDARD 23)
