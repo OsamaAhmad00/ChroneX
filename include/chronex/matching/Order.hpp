@@ -17,13 +17,13 @@ namespace chronex {
 
 struct Price {
     uint64_t value;
-    explicit constexpr Price(const uint64_t value) noexcept : value(value) { }
+    explicit constexpr Price(const uint64_t _value) noexcept : value(_value) { }
     constexpr auto operator<=>(const Price &) const noexcept = default;
 };
 
 struct Quantity {
     uint64_t value;
-    explicit constexpr Quantity(const uint64_t value) noexcept : value(value) { }
+    explicit constexpr Quantity(const uint64_t _value) noexcept : value(_value) { }
     constexpr auto operator<=>(const Quantity &) const noexcept = default;
     Quantity& operator+=(const Quantity &other) noexcept { value += other.value; return *this; }
     Quantity& operator-=(const Quantity &other) noexcept { value -= other.value; return *this; }
@@ -55,7 +55,7 @@ enum class TimeInForce : uint8_t {
 
 struct OrderId {
     uint64_t value;
-    explicit constexpr OrderId(const uint64_t value) noexcept : value(value) { }
+    explicit constexpr OrderId(const uint64_t _value) noexcept : value(_value) { }
     constexpr bool operator==(const OrderId &) const noexcept = default;
 };
 
