@@ -19,4 +19,30 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 
 add_executable(ChroneX main.cpp)
 
-add_subdirectory(testing)
+# Testing start
+add_subdirectory(testing EXCLUDE_FROM_ALL)
+# Testing end
+
+# Packaging start
+
+install(TARGETS ChroneX
+    RUNTIME DESTINATION bin
+    COMPONENT ChroneX
+)
+
+set(CPACK_COMPONENTS_ALL "ChroneX")
+
+set(CPACK_PACKAGE_NAME "ChroneX")
+set(CPACK_PACKAGE_VERSION "0.1.0")
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(CPACK_GENERATOR "DEB")  # .deb
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    set(CPACK_GENERATOR "NSIS")  # .msi
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    set(CPACK_GENERATOR "DragNDrop")  # .dmg
+endif()
+
+include(CPack)
+
+# Packaging end
