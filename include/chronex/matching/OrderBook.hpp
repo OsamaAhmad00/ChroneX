@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <map>
 
 #include <chronex/concepts/Order.hpp>
 #include <chronex/concepts/Logger.hpp>
@@ -10,7 +9,7 @@
 
 #include <chronex/matching/Symbol.hpp>
 #include <chronex/matching/Order.hpp>
-#include <chronex/matching/Levels.hpp>
+#include <chronex/matching/BidsAndAsks.hpp>
 
 namespace chronex {
 
@@ -23,18 +22,9 @@ public:
 
 private:
 
-    using AscendingLevels = Levels<OrderType, std::less<>>;
-    using DescendingLevels = Levels<OrderType, std::greater<>>;
-
-    AscendingLevels asks;
-    DescendingLevels bids;
-
-    AscendingLevels stop_asks;
-    DescendingLevels stop_bids;
-
-    AscendingLevels trailing_asks;
-    DescendingLevels trailing_bids;
-
+    LimitBidsAndAsks<OrderType> limit;
+    StopBidsAndAsks<OrderType> stop;
+    TrailingStopBidsAndAsks<OrderType> trailing_stop;
     Symbol Symbol { };
 };
 

@@ -1,80 +1,22 @@
 #pragma once
 
-#include <cstdint>
-#include <compare>
-
 #include <chronex/concepts/OrderBook.hpp>
 #include <chronex/matching/Symbol.hpp>
 
-#include "Orders/Market.hpp"
-#include "Orders/Limit.hpp"
-#include "Orders/Stop.hpp"
-#include "Orders/StopLimit.hpp"
-#include "Orders/TrailingStop.hpp"
-#include "Orders/TrailingStopLimit.hpp"
+#include <chronex/matching/orders/OrderBase.hpp>
+#include <chronex/matching/orders/MarketOrder.hpp>
+#include <chronex/matching/orders/LimitOrder.hpp>
+#include <chronex/matching/orders/StopOrder.hpp>
+#include <chronex/matching/orders/StopLimitOrder.hpp>
+#include <chronex/matching/orders/TrailingStopOrder.hpp>
+#include <chronex/matching/orders/TrailingStopLimit.hpp>
 
 namespace chronex {
 
-struct Price {
-    uint64_t value;
-    explicit constexpr Price(const uint64_t _value) noexcept : value(_value) { }
-    constexpr auto operator<=>(const Price &) const noexcept = default;
-};
-
-struct Quantity {
-    uint64_t value;
-    explicit constexpr Quantity(const uint64_t _value) noexcept : value(_value) { }
-    constexpr auto operator<=>(const Quantity &) const noexcept = default;
-    Quantity& operator+=(const Quantity &other) noexcept { value += other.value; return *this; }
-    Quantity& operator-=(const Quantity &other) noexcept { value -= other.value; return *this; }
-    Quantity operator+(const Quantity &other) const noexcept { return Quantity{value + other.value}; }
-    Quantity operator-(const Quantity &other) const noexcept { return Quantity{value - other.value}; }
-};
-
-enum class OrderType : uint8_t
-{
-    MARKET,
-    LIMIT,
-    STOP,
-    STOP_LIMIT,
-    TRAILING_STOP,
-    TRAILING_STOP_LIMIT
-};
-
-enum class OrderSide : uint8_t {
-    BUY,
-    SELL,
-};
-
-enum class TimeInForce : uint8_t {
-    GTC,  // Good-Till-Cancelled
-    IOC,  // Immediate-Or-Cancel
-    FOK,  // Fill-Or-Kill
-    AON   // All-Or-None
-};
-
-struct OrderId {
-    uint64_t value;
-    explicit constexpr OrderId(const uint64_t _value) noexcept : value(_value) { }
-    constexpr bool operator==(const OrderId &) const noexcept = default;
-};
-
-struct OrderBase {
-    OrderId id;
-
-    SymbolId symbol_id;
+struct Order : public OrderBase {
 
     OrderType type;
-    OrderSide side;
-    TimeInForce time_in_force;
-    // 1-byte padding
 
-    Quantity quantity;
-    Quantity filled;
-    [[nodiscard]] constexpr Quantity remaining() const noexcept { return quantity - filled; }
-};
-
-struct Order : public OrderBase {
     union {
         MarketOrder as_market;
         LimitOrder as_limit;
