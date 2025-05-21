@@ -1,0 +1,183 @@
+#pragma once
+
+#include <cstdint>
+#include <compare>
+#include <functional>
+#include <limits>
+
+namespace chronex {
+
+struct Price {
+    uint64_t value;
+    explicit constexpr Price(const uint64_t _value) noexcept : value(_value) { }
+    constexpr auto operator<=>(const Price &) const noexcept = default;
+    Price& operator+=(const Price &other) noexcept { value += other.value; return *this; }
+    Price& operator-=(const Price &other) noexcept { value -= other.value; return *this; }
+    Price operator+(const Price &other) const noexcept { return Price{ value + other.value }; }
+    Price operator-(const Price &other) const noexcept { return Price{ value - other.value }; }
+
+    constexpr static Price invalid() noexcept { return Price { std::numeric_limits<decltype(value)>::max() }; }
+};
+
+struct Slippage : public Price {
+    template <typename Op>
+    [[nodiscard]] constexpr Price slippage_price(const Price price) const noexcept {
+        return Op { } (price, Price { value });
+    }
+
+    [[nodiscard]] constexpr Price buy_slippage_price(const Price price) const noexcept {
+        return slippage_price<std::plus<>>(price);
+    }
+
+    [[nodiscard]] constexpr Price sell_slippage_price(const Price price) const noexcept {
+        return slippage_price<std::minus<>>(price);
+    }
+};
+
+struct Quantity {
+    uint64_t value;
+    explicit constexpr Quantity(const uint64_t _value) noexcept : value(_value) { }
+    constexpr auto operator<=>(const Quantity &) const noexcept = default;
+    Quantity& operator+=(const Quantity &other) noexcept { value += other.value; return *this; }
+    Quantity& operator-=(const Quantity &other) noexcept { value -= other.value; return *this; }
+    Quantity operator+(const Quantity &other) const noexcept { return Quantity{ value + other.value }; }
+    Quantity operator-(const Quantity &other) const noexcept { return Quantity{ value - other.value }; }
+
+    constexpr static Quantity max() noexcept { return Quantity { std::numeric_limits<decltype(value)>::max() - 1 }; }
+    constexpr static Quantity invalid() noexcept { return Quantity { std::numeric_limits<decltype(value)>::max() }; }
+};
+
+struct TrailingOffset {
+
+    /*
+        When positive: Absolute distance from the market
+        When negative: percentage distance from the market in 0.01% units
+        Examples:
+         *  100    = 100 price units away from market price
+         * -1      = 0.01% away from market price
+         * -10,000 = 100% away from market price
+    */
+
+    constexpr static TrailingOffset from_price(const Price price) noexcept {
+        return TrailingOffset { static_cast<decltype(value)>(price.value) };
+    }
+
+    constexpr static TrailingOffset from_percentage_units(const int64_t units) noexcept {
+        return TrailingOffset { -units / 10'000 };
+    }
+
+    constexpr static TrailingOffset from_percentage(const double percentage) noexcept {
+        return from_percentage_units(static_cast<int64_t>(percentage * 10'000));
+    }
+
+    [[nodiscard]] constexpr auto raw() const noexcept { return value; }
+
+    [[nodiscard]] constexpr bool is_absolute()   const noexcept { return value >  0; }
+    [[nodiscard]] constexpr bool is_percentage() const noexcept { return value <  0; }
+    [[nodiscard]] constexpr bool is_valid()      const noexcept { return value != 0; }
+
+    template <typename Op>
+    [[nodiscard]] constexpr Price trailing_limit(const Price price) const noexcept {
+        uint64_t diff = value;
+        if (is_percentage()) {
+            diff = value * price.value / 10'000;
+        }
+        return Op { } (price, Price { diff });
+    }
+
+    [[nodiscard]] constexpr Price buy_trailing_limit(const Price price) const noexcept {
+        return trailing_limit<std::plus<>>(price);
+    }
+
+    [[nodiscard]] constexpr Price sell_trailing_limit(const Price price) const noexcept {
+        return trailing_limit<std::minus<>>(price);
+    }
+
+    constexpr static TrailingOffset invalid() noexcept { return TrailingOffset { 0 }; }
+
+private:
+
+    constexpr explicit TrailingOffset(const int64_t raw) noexcept : value(raw) { }
+
+    int64_t value;
+};
+
+enum class OrderType : uint8_t;
+
+struct OrderTypeBits {
+    constexpr static uint8_t Market    = 0b00000001;
+    constexpr static uint8_t Limit     = 0b00000010;
+    constexpr static uint8_t Stop      = 0b00000100;
+    constexpr static uint8_t StopLimit = 0b00001000;
+    constexpr static uint8_t Trailing  = 0b00010000;
+    constexpr static uint8_t Triggered = 0b00100000;
+};
+
+enum class OrderType : uint8_t
+{
+    MARKET = OrderTypeBits::Market,
+    LIMIT = OrderTypeBits::Limit,
+
+    STOP = OrderTypeBits::Stop,
+    STOP_LIMIT = OrderTypeBits::StopLimit,
+    TRAILING_STOP = OrderTypeBits::Trailing | OrderTypeBits::Stop,
+    TRAILING_STOP_LIMIT = OrderTypeBits::Trailing | OrderTypeBits::StopLimit,
+
+    TRIGGERED_STOP = MARKET | STOP | OrderTypeBits::Triggered,
+    TRIGGERED_STOP_LIMIT = LIMIT | STOP_LIMIT | OrderTypeBits::Triggered,
+    TRIGGERED_TRAILING_STOP = MARKET | TRAILING_STOP | OrderTypeBits::Triggered,
+    TRIGGERED_TRAILING_STOP_LIMIT = LIMIT | TRAILING_STOP_LIMIT | OrderTypeBits::Triggered,
+};
+
+constexpr bool is_market(const OrderType type) noexcept {
+    return static_cast<uint8_t>(type) & OrderTypeBits::Market;
+}
+
+constexpr bool is_limit(const OrderType type) noexcept {
+    return static_cast<uint8_t>(type) & OrderTypeBits::Limit;
+}
+
+constexpr bool is_triggered(const OrderType type) noexcept {
+    return static_cast<uint8_t>(type) & OrderTypeBits::Triggered;
+}
+
+constexpr bool is_trailing(const OrderType type) noexcept {
+    return static_cast<uint8_t>(type) & OrderTypeBits::Trailing && !is_triggered(type);
+}
+
+constexpr bool is_stop(const OrderType type) noexcept {
+    return ((static_cast<uint8_t>(type) & OrderTypeBits::Stop) ||
+            (static_cast<uint8_t>(type) & OrderTypeBits::StopLimit)) &&
+            !is_triggered(type);
+}
+
+enum class OrderSide : uint8_t {
+    BUY,
+    SELL,
+};
+
+/*
+ * Market orders can only be one of these two. Have a separate enum for them
+ *  to constrain users from using an undesired TIF when creating market orders.
+ */
+enum class MarketTimeInForce : uint8_t {
+    IOC,  // Immediate-Or-Cancel
+    FOK,  // Fill-Or-Kill
+};
+
+enum class TimeInForce : uint8_t {
+    IOC,  // Immediate-Or-Cancel
+    FOK,  // Fill-Or-Kill
+    GTC,  // Good-Till-Cancelled
+    AON,  // All-Or-None
+};
+
+struct OrderId {
+    uint64_t value;
+    explicit constexpr OrderId(const uint64_t _value) noexcept : value(_value) { }
+    constexpr bool operator==(const OrderId &) const noexcept = default;
+
+    static constexpr OrderId invalid() noexcept { return OrderId { std::numeric_limits<decltype(value)>::max() }; }
+};
+
+}

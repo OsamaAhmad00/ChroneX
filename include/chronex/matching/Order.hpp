@@ -1,111 +1,96 @@
 #pragma once
 
-#include <cstdint>
-#include <compare>
-
+#include <chronex/matching/OrderUtils.hpp>
 #include <chronex/concepts/OrderBook.hpp>
 #include <chronex/matching/Symbol.hpp>
 
-#include "Orders/Market.hpp"
-#include "Orders/Limit.hpp"
-#include "Orders/Stop.hpp"
-#include "Orders/StopLimit.hpp"
-#include "Orders/TrailingStop.hpp"
-#include "Orders/TrailingStopLimit.hpp"
-
 namespace chronex {
 
-struct Price {
-    uint64_t value;
-    explicit constexpr Price(const uint64_t _value) noexcept : value(_value) { }
-    constexpr auto operator<=>(const Price &) const noexcept = default;
-};
+struct Order {
 
-struct Quantity {
-    uint64_t value;
-    explicit constexpr Quantity(const uint64_t _value) noexcept : value(_value) { }
-    constexpr auto operator<=>(const Quantity &) const noexcept = default;
-    Quantity& operator+=(const Quantity &other) noexcept { value += other.value; return *this; }
-    Quantity& operator-=(const Quantity &other) noexcept { value -= other.value; return *this; }
-    Quantity operator+(const Quantity &other) const noexcept { return Quantity{value + other.value}; }
-    Quantity operator-(const Quantity &other) const noexcept { return Quantity{value - other.value}; }
-};
+    [[nodiscard]] constexpr OrderId id() const noexcept { return _id; }
 
-enum class OrderType : uint8_t
-{
-    MARKET,
-    LIMIT,
-    STOP,
-    STOP_LIMIT,
-    TRAILING_STOP,
-    TRAILING_STOP_LIMIT
-};
+    [[nodiscard]] SymbolId symbol_id() const noexcept { return _symbol_id; }
 
-enum class OrderSide : uint8_t {
-    BUY,
-    SELL,
-};
+    [[nodiscard]] OrderType type() const noexcept { return _type; }
+    [[nodiscard]] bool is_market_order() const noexcept { return is_market(type()); }
+    [[nodiscard]] bool is_limit_order() const noexcept { return is_limit(type()); }
+    [[nodiscard]] bool is_stop_order() const noexcept { return type() == OrderType::STOP; }
+    [[nodiscard]] bool is_stop_limit_order() const noexcept { return type() == OrderType::STOP_LIMIT; }
+    [[nodiscard]] bool is_trailing_stop_order() const noexcept { return type() == OrderType::TRAILING_STOP; }
+    [[nodiscard]] bool is_trailing_stop_limit_order() const noexcept { return type() == OrderType::TRAILING_STOP_LIMIT; }
 
-enum class TimeInForce : uint8_t {
-    GTC,  // Good-Till-Cancelled
-    IOC,  // Immediate-Or-Cancel
-    FOK,  // Fill-Or-Kill
-    AON   // All-Or-None
-};
+    [[nodiscard]] OrderSide side() const noexcept { return _side; }
+    [[nodiscard]] bool is_buy_order() const noexcept { return side() == OrderSide::BUY; }
+    [[nodiscard]] bool is_sell_order() const noexcept { return side() == OrderSide::SELL; }
 
-struct OrderId {
-    uint64_t value;
-    explicit constexpr OrderId(const uint64_t _value) noexcept : value(_value) { }
-    constexpr bool operator==(const OrderId &) const noexcept = default;
-};
+    [[nodiscard]] TimeInForce time_in_force() const noexcept { return _time_in_force; }
+    [[nodiscard]] bool is_ioc() const noexcept { return time_in_force() == TimeInForce::IOC; }
+    [[nodiscard]] bool is_fok() const noexcept { return time_in_force() == TimeInForce::FOK; }
+    [[nodiscard]] bool is_gtc() const noexcept { return time_in_force() == TimeInForce::GTC; }
+    [[nodiscard]] bool is_aon() const noexcept { return time_in_force() == TimeInForce::AON; }
 
-struct OrderBase {
-    OrderId id;
+    [[nodiscard]] constexpr Quantity leaves_quantity() const noexcept { return _leaves_quantity; }
+    [[nodiscard]] constexpr Quantity filled_quantity() const noexcept { return _filled_quantity; }
+    [[nodiscard]] constexpr Quantity initial_quantity() const noexcept { return leaves_quantity() + filled_quantity(); }
 
-    SymbolId symbol_id;
+    [[nodiscard]] constexpr Quantity max_visible_quantity() const noexcept { return _max_visible_quantity; }
+    [[nodiscard]] constexpr Quantity visible_quantity() const noexcept { return std::min(leaves_quantity(), max_visible_quantity()); }
+    [[nodiscard]] constexpr Quantity hidden_quantity() const noexcept { return std::max(Quantity { 0 }, leaves_quantity() - max_visible_quantity()); }
 
-    OrderType type;
-    OrderSide side;
-    TimeInForce time_in_force;
-    // 1-byte padding
+    [[nodiscard]] constexpr bool is_hidden() const noexcept { return max_visible_quantity() == Quantity { 0 }; }
+    [[nodiscard]] constexpr bool is_iceberg() const noexcept { return max_visible_quantity() <= Quantity::max(); }
 
-    Quantity quantity;
-    Quantity filled;
-    [[nodiscard]] constexpr Quantity remaining() const noexcept { return quantity - filled; }
-};
+    [[nodiscard]] constexpr Price price() const noexcept { return _price; }
+    [[nodiscard]] constexpr Price stop_price() const noexcept { return _stop_price; }
+    [[nodiscard]] constexpr Price initial_stop_price() const noexcept { return _initial_stop_price; }
 
-struct Order : public OrderBase {
-    union {
-        MarketOrder as_market;
-        LimitOrder as_limit;
-        StopOrder as_stop;
-        StopLimitOrder as_stop_limit;
-        TrailingStopOrder as_trailing_stop;
-        TrailingStopLimitOrder as_trailing_stop_limit;
-    };
+    [[nodiscard]] constexpr Price slippage() const noexcept { return _slippage; }
+    [[nodiscard]] constexpr bool has_slippage() const noexcept { return slippage() != Price { 0 }; }
+
+    [[nodiscard]] constexpr TrailingOffset trailing_distance() const noexcept { return _trailing_distance; }
+    [[nodiscard]] constexpr TrailingOffset trailing_step() const noexcept { return _trailing_step; }
 
     template <concepts::OrderBook OrderBook>
-    bool execute(OrderBook& orderbook) const noexcept;
-};
-
-template <concepts::OrderBook OrderBook>
-bool Order::execute(OrderBook& orderbook) const noexcept {
-    switch (type) {
-        case OrderType::MARKET:
-            return as_market.execute(orderbook);
-        case OrderType::LIMIT:
-            return as_limit.execute(orderbook);
-        case OrderType::STOP:
-            return as_stop.execute(orderbook);
-        case OrderType::STOP_LIMIT:
-            return as_stop_limit.execute(orderbook);
-        case OrderType::TRAILING_STOP:
-            return as_trailing_stop.execute(orderbook);
-        case OrderType::TRAILING_STOP_LIMIT:
-            return as_trailing_stop_limit.execute(orderbook);
-        default:
-            return false;
+    bool execute(OrderBook& orderbook) const noexcept {
+        return static_cast<bool>(_id.value);
     }
-}
+
+    Order(const Order&) noexcept = delete;
+    Order& operator=(const Order&) noexcept = delete;
+
+    // An order can only be moved so that it's not present in multiple locations simultaneously
+    Order(Order&&) noexcept = default;
+    Order& operator=(Order&&) noexcept = default;
+
+    ~Order() noexcept = default;
+
+private:
+
+    OrderId _id = OrderId::invalid();
+
+    SymbolId _symbol_id = SymbolId::invalid();
+
+    OrderType _type { OrderType::MARKET };
+    OrderSide _side { OrderSide::BUY };
+    TimeInForce _time_in_force { TimeInForce::GTC };
+    // 1-byte padding
+
+    Quantity _leaves_quantity = Quantity::invalid();
+    Quantity _filled_quantity = Quantity::invalid();
+    Quantity _max_visible_quantity = Quantity::max();
+
+    Price _price = Price::invalid();
+    Price _stop_price = Price::invalid();
+    // For being able to construct initial order information for trailing stop (limit) orders
+    Price _initial_stop_price = Price::invalid();
+
+    // The default is to not have slippage. Even though limit orders can't have slippage, having
+    //  as 0 by default allows us to always add/subtract the slippage without checking the order type.
+    Price _slippage = Price { 0 };
+
+    TrailingOffset _trailing_distance = TrailingOffset::invalid();
+    TrailingOffset _trailing_step = TrailingOffset::invalid();
+};
 
 }

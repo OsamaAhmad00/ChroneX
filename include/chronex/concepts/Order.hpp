@@ -14,7 +14,7 @@ namespace chronex::concepts {
 
 template <typename OrderType>
 concept Order = requires (OrderType order) {
-    { order.id } -> SameAfterRemovingCVRef<OrderId>;
+    { order.id() } -> SameAfterRemovingCVRef<OrderId>;
 };
 
 }

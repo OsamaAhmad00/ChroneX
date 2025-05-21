@@ -1,12 +1,9 @@
 #pragma once
 
-#include <cstdint>
-#include <map>
-
 #include <chronex/concepts/Order.hpp>
-#include <chronex/concepts/Logger.hpp>
+#include <chronex/concepts/EventHandler.hpp>
 
-#include <chronex/Loggers/NullLogger.hpp>
+#include <chronex/handlers/NullEventHandler.hpp>
 
 #include <chronex/matching/Symbol.hpp>
 #include <chronex/matching/Order.hpp>
@@ -14,9 +11,12 @@
 
 namespace chronex {
 
+template <
+    concepts::Order OrderType = Order,
+    concepts::EventHandler<OrderType> EventHandler = handlers::NullEventHandler
+>
 // Make use of the empty base class optimization and inherit from the logger
-template <concepts::Order OrderType = Order, concepts::Logger Logger = loggers::NullLogger>
-class OrderBook : private Logger {
+class OrderBook : protected EventHandler {
 public:
 
     [[nodiscard]] size_t size() const noexcept { return 0; }
