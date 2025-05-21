@@ -14,6 +14,8 @@ template <concepts::Order OrderType, concepts::UniTypeComparator<Price> Comp>
 class Levels {
 public:
 
+    constexpr auto& best() const noexcept { return map.begin()->second; }
+
     template <typename T>
     void add_order(T&& order) {
         map[order.price].add_order(std::forward<T>(order));
@@ -31,5 +33,8 @@ private:
     // TODO try using std::vector with linear searching and benchmark (https://www.youtube.com/watch?v=sX2nF1fW7kI)
     std::map<Price, Level<OrderType>, Comp> map;
 };
+
+template <concepts::Order OrderType> using AscendingLevels  = Levels<OrderType, std::less<>>;
+template <concepts::Order OrderType> using DescendingLevels = Levels<OrderType, std::greater<>>;
 
 }
