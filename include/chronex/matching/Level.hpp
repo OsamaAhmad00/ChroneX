@@ -1,19 +1,19 @@
 #pragma once
 
-#include <list>
-
 #include <chronex/matching/Order.hpp>
+
+#include <chronex/data-structures/LinkedList.hpp>
 
 namespace chronex {
 
-template <typename OrderType>
+template <typename OrderType, typename ListType = ds::LinkedList<OrderType>>
 class Level {
 public:
 
-    using iterator = typename std::list<OrderType>::iterator;
-    using const_iterator = typename std::list<OrderType>::const_iterator;
-    using reverse_iterator = typename std::list<OrderType>::reverse_iterator;
-    using const_reverse_iterator = typename std::list<OrderType>::const_reverse_iterator;
+    using iterator = typename ListType::iterator;
+    using const_iterator = typename ListType::const_iterator;
+    using reverse_iterator = typename ListType::reverse_iterator;
+    using const_reverse_iterator = typename ListType::const_reverse_iterator;
 
     template <typename T>
     void add_order(T&& order) {
@@ -29,8 +29,9 @@ public:
     [[nodiscard]] Quantity total_volume() const noexcept { return _total_volume; }
 
 private:
+
     // TODO: experiment with other types including different lists and arrays as well
-    std::list<OrderType> orders { };
+    ListType orders { };
     Quantity _total_volume { 0 };
 };
 

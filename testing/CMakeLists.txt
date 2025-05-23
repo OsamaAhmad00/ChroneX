@@ -9,3 +9,4 @@ add_subdirectory(googletest)
 enable_testing()
 
 add_subdirectory(orderbook)
+add_subdirectory(data-structures)
