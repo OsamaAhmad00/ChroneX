@@ -1,4 +1,5 @@
 #include <list>
+#include <random>
 #include <ranges>
 
 #include <gtest/gtest.h>
@@ -740,15 +741,41 @@ TEST_F(PerformanceTests, DifferentTypes) {
 
     // Test with string
     {
+        std::vector<std::string> strings1(size);
+        std::vector<std::string> strings2(size);
+
+        constexpr int str_size = 100;
+        const std::string charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_int_distribution<> dis(0, static_cast<int>(charset.size()) - 1);
+
+        for (size_t i = 0; i < size; ++i) {
+            std::string str(str_size, ' ');
+            for (size_t j = 0; j < str_size; ++j) {
+                str[j] = charset[static_cast<size_t>(dis(gen))];
+            }
+            strings1[i] = std::move(str);
+        }
+
+        for (size_t i = 0; i < size; ++i) {
+            std::string str(str_size, ' ');
+            for (size_t j = 0; j < str_size; ++j) {
+                str[j] = charset[static_cast<size_t>(dis(gen))];
+            }
+            strings2[i] = std::move(str);
+        }
+
         LinkedList<std::string> ll;
         std::list<std::string> stdl;
 
         auto ll_time = measure_time([&]() {
-            for (int i = 0; i < size; ++i) ll.push_back("test" + std::to_string(i));
+            for (size_t i = 0; i < size; ++i) ll.push_back(strings1[i]);
         });
 
         auto std_time = measure_time([&]() {
-            for (int i = 0; i < size; ++i) stdl.push_back("test" + std::to_string(i));
+            for (size_t i = 0; i < size; ++i) stdl.push_back(strings2[i]);
         });
 
         print_comparison("String Type (push_back)", ll_time, std_time);
