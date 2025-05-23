@@ -181,3 +181,19 @@ struct OrderId {
 };
 
 }
+
+namespace std {
+    template <>
+    struct hash<chronex::OrderId> {
+        size_t operator()(const chronex::OrderId &id) const noexcept {
+            return std::hash<decltype(id.value)>{}(id.value);
+        }
+    };
+
+    template <>
+    struct hash<chronex::Price> {
+        size_t operator()(const chronex::Price &price) const noexcept {
+            return std::hash<decltype(price.value)>{}(price.value);
+        }
+    };
+}
