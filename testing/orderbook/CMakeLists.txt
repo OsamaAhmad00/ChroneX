@@ -1,5 +1,7 @@
 add_executable(OrderbookTests Tests.cpp)
 
+target_compile_options(OrderbookTests PRIVATE -Wall -Werror -Wextra -Wpedantic -Wconversion -Wshadow)
+
 target_include_directories(OrderbookTests PRIVATE
     ${CMAKE_SOURCE_DIR}/include
 )
