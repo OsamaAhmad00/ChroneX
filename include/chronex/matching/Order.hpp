@@ -53,7 +53,7 @@ struct Order {
 
     template <concepts::OrderBook OrderBook>
     bool execute(OrderBook& orderbook) const noexcept {
-        return static_cast<bool>(_id.value);
+        return static_cast<bool>(&orderbook);
     }
 
     Order(const Order&) noexcept = delete;

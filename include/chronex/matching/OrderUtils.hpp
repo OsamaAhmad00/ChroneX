@@ -78,11 +78,11 @@ struct TrailingOffset {
 
     template <typename Op>
     [[nodiscard]] constexpr Price trailing_limit(const Price price) const noexcept {
-        uint64_t diff = value;
+        int64_t diff = value;
         if (is_percentage()) {
-            diff = value * price.value / 10'000;
+            diff = -value * static_cast<int64_t>(price.value) / 10'000;
         }
-        return Op { } (price, Price { diff });
+        return Op { } (price, Price { static_cast<uint64_t>(diff) });
     }
 
     [[nodiscard]] constexpr Price buy_trailing_limit(const Price price) const noexcept {
