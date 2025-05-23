@@ -147,6 +147,9 @@ TEST_F(LinkedListTest, Extract) {
     EXPECT_EQ(list.size(), 1);
     EXPECT_EQ(list.front(), 1);
     EXPECT_EQ(*it, 2);
+
+    // So that sanitizers don't scream at us
+    it.free();
 }
 
 TEST_F(LinkedListTest, ExtractRange) {
@@ -322,6 +325,9 @@ TEST_F(ComplexLinkedListTest, UniquePointerStorage) {
     auto extractedPtr = uniquePtrList.extract(uniquePtrList.begin());
     EXPECT_EQ(uniquePtrList.size(), 1);
     EXPECT_EQ(**extractedPtr, 10);
+
+    // So that sanitizers don't scream at us
+    extractedPtr.free();
     
     // Test splice operations with unique_ptr
     LinkedList<std::unique_ptr<int>> otherList;
@@ -484,6 +490,10 @@ TEST_F(LinkedListTest, EdgeCases) {
     EXPECT_EQ(nodeList.size(), 1);
     EXPECT_EQ(nodeList.front().children.size(), 2);
     EXPECT_EQ(nodeList.front().children.front()->value, 2);
+
+    // So that sanitizers don't scream at us
+    delete nodeList.front().children.front();
+    delete nodeList.front().children.back();
 }
 
 class ThrowingObject {

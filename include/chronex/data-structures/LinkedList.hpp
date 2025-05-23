@@ -99,6 +99,11 @@ class LinkedList : private Allocator<LinkedListNode<T>> {
         template <typename OtherNode, typename OtherNext, typename OtherPrev>
         friend class Iterator;
 
+        void free() {
+            delete _node;
+            _node = nullptr;
+        }
+
     private:
 
         friend LinkedList;
@@ -250,13 +255,20 @@ public:
 
     template <typename Iter, typename... Args>
     constexpr Iter emplace(Iter pos, Args&&... args) {
+        struct Deleter {
+            Allocator<Node>& allocator;
+            void operator()(Node* node) {
+                AllocTraits::deallocate(allocator, node, 1);
+            }
+        };
         auto pos_node = pos.node();
-        Node* node = AllocTraits::allocate(*this, 1);
-        AllocTraits::construct(*this, node, pos_node->prev(), pos_node, std::forward<Args>(args)...);
-        pos_node->prev()->set_next(node);
-        pos_node->set_prev(node);
+        auto node = std::unique_ptr<Node, Deleter> { AllocTraits::allocate(*this, 1), Deleter { *this } };
+        // If construction fails, we need to still release the allocated memory
+        AllocTraits::construct(*this, node.get(), pos_node->prev(), pos_node, std::forward<Args>(args)...);
+        pos_node->prev()->set_next(node.get());
+        pos_node->set_prev(node.get());
         ++_size;
-        return Iter { node };
+        return Iter { node.release() };
     }
 
     template <typename Iter>
