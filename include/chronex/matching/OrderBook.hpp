@@ -34,7 +34,7 @@ public:
     [[nodiscard]] constexpr auto& trailing_stop_bids() const noexcept { return trailing_stop_levels().bids(); }
     [[nodiscard]] constexpr auto& trailing_stop_asks() const noexcept { return trailing_stop_levels().asks(); }
 
-    [[nodiscard]] constexpr auto& symbol() const noexcept { return Symbol; }
+    [[nodiscard]] constexpr auto& symbol() const noexcept { return _symbol; }
 
 private:
 
@@ -42,7 +42,7 @@ private:
     StopLevels        <OrderType> _stop_levels          { };
     TrailingStopLevels<OrderType> _trailing_stop_levels { };
 
-    Symbol Symbol { };
+    Symbol _symbol { };
 };
 
 }
