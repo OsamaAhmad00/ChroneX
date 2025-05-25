@@ -31,6 +31,9 @@ public:
         orders.erase(it);
     }
 
+    [[nodiscard]] constexpr size_t size() const noexcept { return orders.size(); }
+    [[nodiscard]] constexpr bool is_empty() const noexcept { return size() == 0; }
+
     [[nodiscard]] constexpr Quantity leaves_quantity() const noexcept { return _leaves_quantity; }
     [[nodiscard]] constexpr Quantity filled_quantity() const noexcept { return _filled_quantity; }
     [[nodiscard]] constexpr Quantity max_visible_quantity() const noexcept { return _max_visible_quantity; }

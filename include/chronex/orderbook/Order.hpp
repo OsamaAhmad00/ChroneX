@@ -2,7 +2,7 @@
 
 #include <chronex/orderbook/OrderUtils.hpp>
 #include <chronex/concepts/OrderBook.hpp>
-#include <../Symbol.hpp>
+#include <chronex/Symbol.hpp>
 
 namespace chronex {
 
@@ -33,6 +33,7 @@ struct Order {
     [[nodiscard]] constexpr Quantity leaves_quantity() const noexcept { return _leaves_quantity; }
     [[nodiscard]] constexpr Quantity filled_quantity() const noexcept { return _filled_quantity; }
     [[nodiscard]] constexpr Quantity initial_quantity() const noexcept { return leaves_quantity() + filled_quantity(); }
+    [[nodiscard]] constexpr bool is_fully_filled() const noexcept { return leaves_quantity() == Quantity { 0 }; }
 
     [[nodiscard]] constexpr Quantity max_visible_quantity() const noexcept { return _max_visible_quantity; }
     [[nodiscard]] constexpr Quantity visible_quantity() const noexcept { return std::min(leaves_quantity(), max_visible_quantity()); }
