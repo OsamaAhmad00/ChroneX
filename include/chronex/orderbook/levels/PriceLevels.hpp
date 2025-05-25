@@ -11,10 +11,25 @@ public:
     // Or DescendingLevels. It doesn't matter.
     using OrderIterator = typename AscendingLevels<OrderType>::OrderIterator;
 
-    constexpr auto& best_bid_level() const noexcept { return bids().best(); }
-    constexpr auto& best_ask_level() const noexcept { return asks().best(); }
-    constexpr auto bids() const noexcept { return _bids; }
-    constexpr auto asks() const noexcept { return _asks; }
+    template <typename Self>
+    constexpr auto& bids(this Self&& self) noexcept { return self._bids; }
+
+    template <typename Self>
+    constexpr auto& asks(this Self&& self) noexcept { return self._asks; }
+
+    template <typename Self, OrderSide side>
+    constexpr auto& levels(this Self&& self) noexcept {
+        if constexpr (side == OrderSide::BUY) {
+            return self.bids();
+        } else if constexpr (side == OrderSide::SELL) {
+            return self.asks();
+        } else {
+            assert(false && "Unknown side");
+        }
+    }
+
+    template <typename Self, OrderSide side>
+    constexpr auto best(this Self&& self) const noexcept { return self.template levels<side>.best(); }
 
 private:
 

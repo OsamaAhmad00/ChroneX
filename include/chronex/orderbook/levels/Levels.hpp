@@ -21,48 +21,73 @@ public:
 
     using OrderIterator = typename LevelType::iterator;
 
+    using iterator = typename ContainerType::iterator;
     using const_iterator = typename ContainerType::const_iterator;
+    using reverse_iterator = typename ContainerType::reverse_iterator;
     using const_reverse_iterator = typename ContainerType::const_reverse_iterator;
 
     constexpr auto& best() const noexcept { return map.begin()->second; }
 
-    template <typename T>
-    auto add_order(T&& order) {
-        orders_count++;
-        return map[order.price].add_order(std::forward<T>(order));
+    template <typename T, typename Iter>
+    constexpr auto add_order(T&& order, Iter level_it) {
+        assert(level_it != this->end() && "Trying to remove order from non-existing level");
+
+        ++_orders_count;
+
+        return *level_it.add_order(std::forward<T>(order));
     }
 
     template <typename T>
-    void remove_order(T&& order) {
+    constexpr auto add_order(T&& order) {
+        return add_order(std::forward<T>(order), this->find(order.price()));
+    }
+
+    template <typename Iter>
+    constexpr auto remove_order(OrderIterator order_it, Iter level_it) {
         assert(orders_count > 0 && "Trying to remove order from empty level");
-        map[order.price].remove_order(std::forward<T>(order));
+        assert(level_it != this->end() && "Trying to remove order from non-existing level");
+
+        --_orders_count;
+
         // Is removing levels with total_quantity == 0 an optimization or pessimization?
         // TODO benchmark removing levels with total_quantity == 0
-        orders_count--;
+        return *level_it.remove_order(order_it);
+    }
+
+    constexpr auto remove_order(OrderIterator order_it) {
+        return remove_order(order_it, this->find(order_it->price()));
     }
 
     template <typename Iter>
-    [[nodiscard]] constexpr Iter next_level(Iter it) const noexcept {
-        return std::next(it);
-    }
+    [[nodiscard]] constexpr Iter next_level(Iter it) const noexcept { return std::next(it); }
 
     template <typename Iter>
-    [[nodiscard]] constexpr Iter prev_level(Iter it) const noexcept {
-        return std::prev(it);
-    }
+    [[nodiscard]] constexpr Iter prev_level(Iter it) const noexcept { return std::prev(it); }
 
-    // Expose only const iterators so that it can't be modified by iterators
-    [[nodiscard]] constexpr const_iterator         begin()  const noexcept { return map.begin();  }
-    [[nodiscard]] constexpr const_iterator         end()    const noexcept { return map.end();    }
-    [[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return map.rbegin(); }
-    [[nodiscard]] constexpr const_reverse_iterator rend()   const noexcept { return map.rend();   }
+    template <typename Self>
+    [[nodiscard]] constexpr auto find(this Self&& self, Price price) noexcept { return self.map().find(price); }
+
+    template <typename Self>
+    [[nodiscard]] constexpr auto& begin(this Self&& self) noexcept { return self.map().begin();  }
+
+    template <typename Self>
+    [[nodiscard]] constexpr auto& end(this Self&& self) noexcept { return self.map().end();  }
+
+    template <typename Self>
+    [[nodiscard]] constexpr auto& rbegin(this Self&& self) noexcept { return self.map().rbegin();  }
+
+    template <typename Self>
+    [[nodiscard]] constexpr auto& rend(this Self&& self) noexcept { return self.map().rend();  }
 
 private:
+
+    [[nodiscard]] constexpr auto& map() noexcept { return _map; }
+
     // TODO use AVL tree instead
     // TODO try using std::vector with linear searching and benchmark (https://www.youtube.com/watch?v=sX2nF1fW7kI)
-    ContainerType map;
+    ContainerType _map;
 
-    size_t orders_count { 0 };
+    size_t _orders_count { 0 };
 };
 
 template <concepts::Order OrderType> using AscendingLevels  = Levels<OrderType, std::less<>>;
