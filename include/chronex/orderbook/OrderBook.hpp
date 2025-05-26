@@ -18,10 +18,13 @@ enum class LevelsType {
     TRAILING_STOP,
 };
 
+template <typename Key, typename Value>
+using unordered_map = std::unordered_map<Key, Value>;
+
 template <
     concepts::Order Order = Order,
-    concepts::EventHandler EventHandler = handlers::NullEventHandler,
-    typename HashMap = std::unordered_map
+    concepts::EventHandler<Order> EventHandler = handlers::NullEventHandler,
+    template <typename, typename> typename HashMap = unordered_map
 >
 class OrderBook {
 public:
@@ -29,6 +32,11 @@ public:
     // We can use StopLevels or TrailingStopLevels as
     //  well, all have the same OrderIterator type
     using OrderIterator = typename PriceLevels<Order>::OrderIterator;
+
+    constexpr OrderBook(HashMap<OrderId, OrderIterator>* orders, const Symbol symbol, EventHandler* event_handler) noexcept
+        : _orders(orders), _symbol(symbol), _event_handler(event_handler) {
+
+    }
 
     template <LevelsType type, typename Self>
     [[nodiscard]] constexpr auto& levels(this Self&& self) noexcept {

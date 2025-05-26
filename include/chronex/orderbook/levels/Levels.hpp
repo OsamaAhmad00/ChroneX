@@ -1,7 +1,6 @@
 #pragma once
 
 #include <map>
-#include <map>
 
 #include <chronex/concepts/Common.hpp>
 #include <chronex/concepts/Order.hpp>
@@ -28,7 +27,8 @@ public:
 
     // TODO cache the best iterator and when it gets deleted, use std::next.
     //  This is to maintain an O(1) lookup for the best value instead of O(log(N))
-    constexpr auto& best() const noexcept { return map.begin()->second; }
+    template <typename Self>
+    constexpr auto& best(this Self&& self) noexcept { return self.map().begin()->second; }
 
     template <typename T, typename Iter>
     constexpr auto add_order(T&& order, Iter level_it) {
@@ -87,7 +87,8 @@ public:
 
 private:
 
-    [[nodiscard]] constexpr auto& map() noexcept { return _map; }
+    template <typename Self>
+    [[nodiscard]] constexpr auto& map(this Self&& self) noexcept { return self._map; }
 
     // TODO use AVL tree instead
     // TODO try using std::vector with linear searching and benchmark (https://www.youtube.com/watch?v=sX2nF1fW7kI)

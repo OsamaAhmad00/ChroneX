@@ -18,11 +18,14 @@
 
 namespace chronex {
 
+template <typename Key, typename Value>
+using unordered_map = std::unordered_map<Key, Value>;
+
 template <
     concepts::Order Order = Order,
     concepts::EventHandler<OrderType> EventHandler = handlers::NullEventHandler,
     concepts::OrderBook OrderBook = OrderBook<Order, EventHandler>,
-    typename HashMap = std::unordered_map
+    template <typename, typename> typename HashMap = unordered_map
 >
 class MatchingEngine {
 
@@ -488,7 +491,7 @@ private:
             if (order_has_less_quantity) {
                 // `order` is the actual executing order
                 event_handler().on_order_match<order_side>(*order, *executing);
-                quantity = order.leaves_quantity();
+                quantity = order->leaves_quantity();
             } else {
                 event_handler().on_order_match<opposite_side>(*executing, *order);
                 quantity = executing->leaves_quantity();
@@ -546,7 +549,7 @@ private:
     template <typename First, typename... Rest>
     constexpr bool is_any_triggered(First&& first, Rest&&... rest) const noexcept {
         if constexpr (sizeof...(rest) == 0) return first == StopOrdersAction::TRIGGERED;
-        return first == StopOrdersAction::TRIGGERED || is_any_triggered<rest...>();
+        return (first == StopOrdersAction::TRIGGERED) | is_any_triggered<rest...>();
     }
 
     constexpr StopOrdersAction activate_stop_orders(OrderBook& orderbook) noexcept {
@@ -610,7 +613,7 @@ private:
     }
 
     template <OrderType type, OrderSide side>
-    constexpr void activate_stop_order(OrderBook& orderbook, Order& order, Price level_price) noexcept {
+    constexpr void activate_stop_order(OrderBook& orderbook, Order& order) noexcept {
         order.mark_triggered();
         // TODO remove this and have a way to handle triggered stop orders accordingly
         if (order.time_in_force() != TimeInForce::FOK) {
@@ -631,7 +634,7 @@ private:
     }
 
     template <OrderType type, OrderSide side>
-    constexpr void activate_stop_limit_order(OrderBook& orderbook, Order& order, Price level_price) noexcept {
+    constexpr void activate_stop_limit_order(OrderBook& orderbook, Order& order) noexcept {
         // Unlink the order from its stop order level and link it into a limit order level
         orderbook.template unlink_order<type, side>(order);
 
@@ -644,7 +647,7 @@ private:
 
     constexpr Quantity calculate_matching_chain_quantity(OrderIterator order_it, Quantity needed) noexcept {
         auto quantity = order_it->leaves_quantity();
-        if (order_it->is_aon() | needed < quantity) {
+        if (order_it->is_aon() | (needed < quantity)) {
             // quantity = min(order_it->leaves_quantity(), needed);
             // BUT, if the order is All-Or-None, then we must either
             //  match it as a whole or not proceed at all
