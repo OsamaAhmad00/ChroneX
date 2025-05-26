@@ -26,6 +26,8 @@ public:
     using reverse_iterator = typename ContainerType::reverse_iterator;
     using const_reverse_iterator = typename ContainerType::const_reverse_iterator;
 
+    // TODO cache the best iterator and when it gets deleted, use std::next.
+    //  This is to maintain an O(1) lookup for the best value instead of O(log(N))
     constexpr auto& best() const noexcept { return map.begin()->second; }
 
     template <typename T, typename Iter>
@@ -57,6 +59,10 @@ public:
     constexpr auto remove_order(OrderIterator order_it) {
         return remove_order(order_it, this->find(order_it->price()));
     }
+
+    [[nodiscard]] constexpr size_t orders_count() const noexcept { return _orders_count; }
+
+    [[nodiscard]] constexpr bool is_empty() const noexcept { return orders_count() == 0; }
 
     template <typename Iter>
     [[nodiscard]] constexpr Iter next_level(Iter it) const noexcept { return std::next(it); }

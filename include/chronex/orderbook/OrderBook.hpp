@@ -58,6 +58,16 @@ public:
         return self.template levels<type>().asks();
     }
 
+    template <typename Self>
+    [[nodiscard]] constexpr auto& bids(this Self&& self) noexcept {
+        return self.template levels<LevelsType::PRICE>().bids();
+    }
+
+    template <typename Self>
+    [[nodiscard]] constexpr auto& asks(this Self&& self) noexcept {
+        return self.template levels<LevelsType::PRICE>().asks();
+    }
+
     template <LevelsType type, OrderSide side, concepts::Order T>
     constexpr auto add_order(T&& order) noexcept {
         auto id = order.id();
@@ -150,9 +160,6 @@ private:
     TrailingStopLevels<Order> _trailing_stop_levels { };
 
     HashMap<OrderId, OrderIterator>* _orders { };
-
-    Price _last_bid_price     = Price::invalid();
-    Price _last_ask_price     = Price::invalid();
 
     Price _matching_bid_price = Price::invalid();
     Price _matching_ask_price = Price::invalid();
