@@ -29,7 +29,7 @@ public:
     }
 
     template <typename Self, OrderSide side>
-    constexpr auto best(this Self&& self) const noexcept { return self.template levels<side>.best(); }
+    constexpr auto best(this Self&& self) noexcept { return self.template levels<side>.best(); }
 
 private:
 

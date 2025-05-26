@@ -1,5 +1,5 @@
-#include <chronex/orderbook/OrderBook.hpp>
+#include <chronex/matching/MatchingEngine.hpp>
 
 int main() {
-    chronex::OrderBook orderbook { };
+    chronex::MatchingEngine<> matching_engine;
 }
