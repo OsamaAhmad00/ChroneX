@@ -13,9 +13,6 @@
 #include <chronex/orderbook/OrderBook.hpp>
 #include <chronex/orderbook/OrderUtils.hpp>
 
-// Only works with stateless functors
-#define RESOLVE_TYPE_AND_SIDE_THEN_CALL(order, func) resolve_type_and_side_then_call<decltype(func)>(order)
-
 namespace chronex {
 
 template <typename Key, typename Value>
@@ -94,7 +91,7 @@ public:
 
         switch (order.type()) {
             case OrderType::MARKET:
-                return add_market_order(std::forward<T>(order));
+                return add_market_order<side>(std::forward<T>(order));
             case OrderType::LIMIT:
                 return add_limit_order<side>(std::forward<T>(order));
             case OrderType::STOP:
@@ -110,14 +107,14 @@ public:
         }
     }
 
-    template <concepts::Order T>
+    template <OrderSide side, concepts::Order T>
     constexpr void add_market_order(T&& order) {
         auto& orderbook = orderbook_at(order.symbol_id());
 
         event_handler().on_market_order_add(order);
 
         if (is_matching_enabled())
-            match_market_order(orderbook, order);
+            match_market_order<side>(orderbook, order);
 
         event_handler().on_market_order_remove(order);
 
@@ -136,7 +133,7 @@ public:
         //  then its price level is better than any order sitting in the orderbook.
         //  Otherwise, it'll not execute and will be put at the end of the queue
         if (is_matching_enabled())
-            match_limit_order(orderbook, order);
+            match_limit_order<side>(orderbook, order);
 
         try_add_limit_order<OrderType::LIMIT, side>(orderbook, std::forward<T>(order));
 
@@ -187,7 +184,7 @@ public:
         if (is_matching_enabled()) {
             auto stop_trigger_price = orderbook.template get_market_price<side>();
 
-            constexpr auto should_trigger = [&] {
+            auto should_trigger = [&] {
                 if constexpr (side == OrderSide::BUY)
                     return stop_trigger_price >= order.stop_price();
                 return stop_trigger_price <= order.stop_price();
@@ -228,9 +225,14 @@ public:
         auto [order, orderbook] = get_order_and_orderbook(id);
         // This will do the reporting and the removal of the orders from the hash map if needed
         auto reduce_func = [&] <OrderType type, OrderSide side> {
-            orderbook.template reduce_order<type, side>(order, quantity);
+            orderbook.get().template reduce_order<type, side>(order, quantity);
         };
-        RESOLVE_TYPE_AND_SIDE_THEN_CALL(order, reduce_func);
+        resolve_type_and_side_then_call(order.get(), reduce_func);
+    }
+
+    constexpr void reduce_order(Order& order, const Quantity quantity) noexcept {
+        (void)order;
+        (void)quantity;
     }
 
     constexpr void modify_order(const OrderId id, const Quantity quantity, const Price price, const bool mitigate) noexcept {
@@ -241,7 +243,7 @@ public:
         auto modify_func = [&] <OrderType type, OrderSide side> {
             orderbook.template modify_order<type, side>(order, quantity, price, mitigate);
         };
-        RESOLVE_TYPE_AND_SIDE_THEN_CALL(order, modify_func);
+        resolve_type_and_side_then_call(order, modify_func);
 
         perform_post_order_processing(orderbook);
     }
@@ -251,9 +253,9 @@ public:
         // This will do the reporting and the removal of the orders from the hash map
         auto [order, orderbook] = get_order_and_orderbook(id);
         auto remove_func = [&] <OrderType type, OrderSide side> {
-            orderbook.template remove_order<type, side>(order);
+            orderbook.get().template remove_order<type, side>(order);
         };
-        RESOLVE_TYPE_AND_SIDE_THEN_CALL(order, remove_func);
+        resolve_type_and_side_then_call(order, remove_func);
     }
 
     template <typename T>
@@ -266,9 +268,9 @@ public:
         auto [order, orderbook] = get_order_and_orderbook(id);
         // This will do the reporting and the removal and the addition of the orders from the hash map
         auto replace_func = [&] <OrderType type, OrderSide side> {
-            orderbook.template replace_order<type, side>(order, std::forward<T>(new_order));
+            orderbook.get().template replace_order<type, side>(order, std::forward<T>(new_order));
         };
-        RESOLVE_TYPE_AND_SIDE_THEN_CALL(order, replace_func);
+        resolve_type_and_side_then_call(order, replace_func);
     }
 
     constexpr void execute_order(const OrderId id, const Quantity quantity, Price price) noexcept {
@@ -292,8 +294,10 @@ public:
 private:
 
     template <bool use_order_price>
-    constexpr void execute_order(const OrderId id, const Quantity quantity, Price price) noexcept {
-        auto [order, orderbook] = get_order_and_orderbook(id);
+    constexpr void execute_order(const OrderId id, Quantity quantity, Price price) noexcept {
+        auto [order_ref, orderbook_ref] = get_order_and_orderbook(id);
+        auto& order = order_ref.get();
+        auto& orderbook = orderbook_ref.get();
 
         if constexpr (use_order_price) {
             price = order.price();
@@ -310,53 +314,50 @@ private:
             orderbook.template execute_quantity<type, side>(order, quantity, price);
         };
 
-        RESOLVE_TYPE_AND_SIDE_THEN_CALL(order, func);
+        resolve_type_and_side_then_call(order, func);
 
         perform_post_order_processing(orderbook);
     }
 
     constexpr std::tuple<std::reference_wrapper<Order>, std::reference_wrapper<OrderBook>> get_order_and_orderbook(OrderId id) {
         assert(orders().contains(id) && "Order with the given ID doesn't exists in the matching engine");
-        auto order = &order_by_id(id);
-        auto orderbook = &orderbook_at(order.symbol_id());
+        auto& order = *order_by_id(id);
+        auto& orderbook = orderbook_at(order.symbol_id());
         return std::make_pair(std::ref(order), std::ref(orderbook));
     }
 
-    template <template <OrderType, OrderSide> typename Func>
-    constexpr auto&& resolve_type_and_side_then_call(Order& order) noexcept {
-        constexpr auto type = [&] {
+    template <typename Func>
+    constexpr void resolve_type_and_side_then_call(Order& order, Func&& func) noexcept {
+        auto f1 = [&] <OrderSide side> {
             switch (order.type()) {
-                case OrderType::MARKET: return OrderType::MARKET;
-                case OrderType::LIMIT: return OrderType::LIMIT;
-                case OrderType::STOP: return OrderType::STOP;
-                case OrderType::TRAILING_STOP: return OrderType::TRAILING_STOP;
-                case OrderType::STOP_LIMIT: return OrderType::STOP_LIMIT;
-                case OrderType::TRAILING_STOP_LIMIT: return OrderType::TRAILING_STOP_LIMIT;
-                case OrderType::TRIGGERED_STOP: return OrderType::TRIGGERED_STOP;
-                case OrderType::TRIGGERED_STOP_LIMIT: return OrderType::TRIGGERED_STOP_LIMIT;
-                case OrderType::TRIGGERED_TRAILING_STOP: return OrderType::TRIGGERED_TRAILING_STOP;
+                case OrderType::MARKET: return func.template operator()<OrderType::MARKET, side>();
+                case OrderType::LIMIT: return func.template operator()<OrderType::LIMIT, side>();
+                case OrderType::STOP: return func.template operator()<OrderType::STOP, side>();
+                case OrderType::TRAILING_STOP: return func.template operator()<OrderType::TRAILING_STOP, side>();
+                case OrderType::STOP_LIMIT: return func.template operator()<OrderType::STOP_LIMIT, side>();
+                case OrderType::TRAILING_STOP_LIMIT: return func.template operator()<OrderType::TRAILING_STOP_LIMIT, side>();
+                case OrderType::TRIGGERED_STOP: return func.template operator()<OrderType::TRIGGERED_STOP, side>();
+                case OrderType::TRIGGERED_STOP_LIMIT: return func.template operator()<OrderType::TRIGGERED_STOP_LIMIT, side>();
+                case OrderType::TRIGGERED_TRAILING_STOP: return func.template operator()<OrderType::TRIGGERED_TRAILING_STOP, side>();
                 default: ;
             }
-            return OrderType::TRIGGERED_TRAILING_STOP_LIMIT;
-        }();
+            return func.template operator()<OrderType::TRIGGERED_TRAILING_STOP_LIMIT, side>();
+        };
 
-        constexpr auto side = [&] {
-            if (order.side() == OrderSide::BUY)
-                return OrderSide::BUY;
-            return OrderSide::SELL;
-        }();
+        if (order.side() == OrderSide::BUY)
+            return f1.template operator()<OrderSide::BUY>();
 
-        return Func<type, side> { } ();
+        return f1.template operator()<OrderSide::SELL>();
     }
 
     using OrderIterator = typename OrderBook::OrderIterator;
 
     constexpr void match(OrderBook& orderbook) {
         while (true) {
-            while (!orderbook.bids().is_empty() & !orderbook.asks().is_empty()) {
+            while (int(!orderbook.bids().is_empty()) & int(!orderbook.asks().is_empty())) {
                 // Maintain price-time priority
-                auto& [bid_price, bid_level] = orderbook.bids().best();
-                auto& [ask_price, ask_level] = orderbook.asks().best();
+                auto& [bid_price, bid_level] = *orderbook.bids().best();
+                auto& [ask_price, ask_level] = *orderbook.asks().best();
 
                 // No orders to match
                 if (bid_price < ask_price) break;
@@ -368,9 +369,9 @@ private:
                 // TODO In case both of them are AONs, should we favor (execute
                 //  with the price of) the bid order or the ask order?
                 if (bid_it->is_aon()) {
-                    match_aon(bid_it, ask_level, bid_level, orderbook);
+                    match_aon(orderbook, bid_it->price());
                 } else if (ask_it->is_aon()) {
-                    match_aon(ask_it, ask_level, bid_level, orderbook);
+                    match_aon(orderbook, ask_it->price());
                 } else {
                     // If the quantity is the same, it doesn't matter which branch is executed.
                     // The point here is that if the quantities are not equal, then there will
@@ -380,7 +381,7 @@ private:
                     if (bid_it->leaves_quantity() > ask_it->leaves_quantity()) {
                         match_orders<OrderSide::BUY>(bid_it, ask_it, orderbook);
                     } else {
-                        match<OrderSide::SELL>(ask_it, bid_it, orderbook);
+                        match_orders<OrderSide::SELL>(ask_it, bid_it, orderbook);
                     }
                 }
 
@@ -397,13 +398,11 @@ private:
         }
     }
 
-    template <typename T, typename U>
-    constexpr void match_aon(OrderIterator& aon_order, T& bid_level, U& ask_level, OrderBook& orderbook) noexcept {
-        Quantity chain_volume = calculate_matching_chain(orderbook, bid_level, ask_level);
+    constexpr void match_aon(OrderBook& orderbook, Price price) noexcept {
+        Quantity chain_volume = calculate_matching_chain(orderbook);
         if (chain_volume.value == 0) return;
-        Price price = aon_order->price();
-        execute_matching_chain(orderbook, bid_level, price, chain_volume);
-        execute_matching_chain(orderbook, ask_level, price, chain_volume);
+        execute_matching_chain<OrderSide::BUY>(orderbook, price, chain_volume);
+        execute_matching_chain<OrderSide::SELL>(orderbook, price, chain_volume);
     }
 
     template <OrderSide executing_side>
@@ -430,19 +429,21 @@ private:
 
     template <OrderSide side>
     constexpr void match_order(OrderBook& orderbook, Order& order) noexcept {
-        auto& opposite = [&] {
-            if constexpr (side == OrderSide::BUY)
+        auto& opposite = [&] -> auto& {
+            if constexpr (side == OrderSide::BUY) {
                 return orderbook.asks();
-            return orderbook.bids();
+            } else {
+                return orderbook.bids();
+            }
         }();
         while (!opposite.is_empty()) {
-            auto& [price, level] = opposite.best();
+            auto& [price, level] = *opposite.best();
 
             // Make sure there are crossed orders first
             if (!prices_cross<side>(order.price(), price)) break;
 
             // No short-circuit behavior
-            if (order.is_fok() | order.is_aon()) {
+            if (int(order.is_fok()) | int(order.is_aon())) {
                 return try_match_aon<side>(orderbook, order, level);
             }
 
@@ -467,7 +468,7 @@ private:
             // Either this order is fully "executing" or the target order `order` is executing.
             // It can happen that both of them are fully executed if the leaves_quantity of them
             //  are equal. Otherwise, the non-executing order will just be reduced (execute partially)
-            auto executing_it = level.best();
+            auto executing_it = level.begin();
             auto* executing = &(*executing_it);
 
             // Special case for All-Or-None orders. The case of `order.is_aon()` is handled before
@@ -485,15 +486,15 @@ private:
                 }
             }
 
-            auto price = executing->price();  // TODO or order->price()?
+            // auto price = executing->price();  // TODO or order->price()?
 
             Quantity quantity = Quantity::invalid();
             if (order_has_less_quantity) {
                 // `order` is the actual executing order
-                event_handler().on_order_match<order_side>(*order, *executing);
+                event_handler().template on_order_match<order_side>(*order, *executing);
                 quantity = order->leaves_quantity();
             } else {
-                event_handler().on_order_match<opposite_side>(*executing, *order);
+                event_handler().template on_order_match<opposite_side>(*executing, *order);
                 quantity = executing->leaves_quantity();
             }
 
@@ -508,20 +509,33 @@ private:
     }
 
     template <OrderSide side>
+    constexpr auto& get_side(OrderBook& orderbook) noexcept {
+        return orderbook.bids();
+    }
+
+    template <>
+    constexpr auto& get_side<OrderSide::SELL>(OrderBook& orderbook) noexcept {
+        return orderbook.asks();
+    }
+
+    template <OrderSide side>
     constexpr void match_market_order(OrderBook& orderbook, Order& order) noexcept {
         // TODO Overwriting the price takes away the
         //  ability to have historical data about the
         //  original price. keep track of the original
         //  price
-        auto& opposite = [&] {
-            if constexpr (side == OrderSide::BUY)
-                return orderbook.asks();
-            return orderbook.bids();
-        }();
+        auto& opposite = get_side<side>(orderbook);
+        // auto& opposite = [&] {
+        //     if constexpr (side == OrderSide::BUY) {
+        //         return orderbook.asks();
+        //     } else {
+        //         return orderbook.bids();
+        //     }
+        // }();
 
         if (opposite.is_empty()) return;
 
-        auto& [price, _] = opposite.best();
+        auto& [price, _] = *opposite.best();
         order.set_price(price);
         order.template add_slippage<side>();
 
@@ -533,7 +547,7 @@ private:
         // No need for short-circuit behavior here because the checks are simple, and
         //  having short-circuit behavior would be compiled to multiple branches, making
         //  it harder for the branch predictor to do its job
-        if (!order.is_fully_filled() & !order.is_ioc() & !order.is_fok()) {
+        if (int(!order.is_fully_filled()) & int(!order.is_ioc()) & int(!order.is_fok())) {
             constexpr auto level = [] {
                 // The order is important here because a trailing stop is a stop as well
                 if constexpr (type == OrderType::LIMIT) return LevelsType::PRICE;
@@ -691,88 +705,88 @@ private:
     }
 
     constexpr Quantity calculate_matching_chain(OrderBook& orderbook) noexcept {
-        auto& [bid_price, bid_level] = *orderbook.bids().begin();
-        auto& [ask_price, ask_level] = *orderbook.asks().begin();
-
-        // There is a "longer" and a "shorter" order. In case both are
-        //  AON or both are not AON, then the longer is the one that
-        //  has more quantity. Otherwise, the longer is the AON order
-        auto [shorter_level, longer_level] = [&] {
-            auto bid_it = bid_level.begin();
-            auto ask_it = ask_level.begin();
-            bool bid_is_longer = bid_it->leaves_quantity() > ask_it->leaves_quantity();
-            if (bid_it->is_aon() & (bid_is_longer | !ask_it->is_aon())) {
-                return std::make_pair(ask_level, bid_level);
-            }
-            return std::make_pair(bid_level, ask_level);
-        }();
-
-        auto longer_order = longer_level.begin();
-
-        // TODO get rid of the end() iterator (by comparing to nullptr or something)
-        auto shorter_end = shorter_level.end();
-        auto longer_end = longer_level.end();
-
-        auto available = Quantity { 0 };
-        auto required = longer_order->leaves_quantity();
-
-        // No need to check for longer_level as it's not
-        //  going to reach the end before shorter_level
-        while (shorter_level != shorter_end) {
-            // Same here
-            auto shorter_order = shorter_level.begin();
-            while (shorter_order != shorter_end) {
-                auto needed = required - available;
-                auto quantity = calculate_matching_chain_quantity(shorter_order, needed);
-                available += quantity;
-
-                if (required == available) {
-                    return required;
-                }
-
-                // Longer has become shorter
-                if (required < available) {
-                    std::swap(shorter_order, longer_order);
-                    std::swap(shorter_level, longer_level);
-                    std::swap(shorter_end, longer_end);
-
-                    shorter_order = shorter_level->next(shorter_level);
-                    std::swap(required, available);
-                    continue;
-                }
-
-                shorter_order = shorter_level->next(shorter_level);
-            }
-
-            ++shorter_level;
-        }
+        (void)orderbook;
+        // auto& [bid_price, bid_level] = *orderbook.bids().begin();
+        // auto& [ask_price, ask_level] = *orderbook.asks().begin();
+        // // TODO remove this nasty hack
+        // auto ask_end = &orderbook.asks().end()->second;
+        // auto bid_end = &orderbook.bids().end()->second;
+        //
+        // // There is a "longer" and a "shorter" order. In case both are
+        // //  AON or both are not AON, then the longer is the one that
+        // //  has more quantity. Otherwise, the longer is the AON order
+        // auto [shorter_level, shorter_level_end, longer_level, longer_level_end] = [&] {
+        //     auto bid_it = bid_level.begin();
+        //     auto ask_it = ask_level.begin();
+        //     bool bid_is_longer = bid_it->leaves_quantity() > ask_it->leaves_quantity();
+        //     if (int(bid_it->is_aon()) & (int(bid_is_longer) | int(!ask_it->is_aon()))) {
+        //         return std::make_tuple(&ask_level, ask_end, &bid_level, bid_end);
+        //     }
+        //     return std::make_tuple(&bid_level, bid_end, &ask_level, ask_end);
+        // }();
+        //
+        // auto longer_order = longer_level->begin();
+        //
+        // // TODO get rid of the end() iterator (by comparing to nullptr or something)
+        // auto shorter_end = shorter_level->end();
+        // auto longer_end = longer_level->end();
+        //
+        // auto available = Quantity { 0 };
+        // auto required = longer_order->leaves_quantity();
+        //
+        // // No need to check for longer_level as it's not
+        // //  going to reach the end before shorter_level
+        // while (shorter_level != shorter_end) {
+        //     // Same here
+        //     auto shorter_order = shorter_level.begin();
+        //     while (shorter_order != shorter_end) {
+        //         auto needed = required - available;
+        //         auto quantity = calculate_matching_chain_quantity(shorter_order, needed);
+        //         available += quantity;
+        //
+        //         if (required == available) {
+        //             return required;
+        //         }
+        //
+        //         // Longer has become shorter
+        //         if (required < available) {
+        //             std::swap(shorter_order, longer_order);
+        //             std::swap(shorter_level, longer_level);
+        //             std::swap(shorter_end, longer_end);
+        //
+        //             shorter_order = shorter_level->next(shorter_level);
+        //             std::swap(required, available);
+        //             continue;
+        //         }
+        //
+        //         shorter_order = shorter_level->next(shorter_level);
+        //     }
+        //
+        //     ++shorter_level;
+        // }
 
         return Quantity { 0 };
     }
 
     template <OrderSide side>
     constexpr void execute_matching_chain(OrderBook& orderbook, Price price, Quantity volume) noexcept {
-        auto levels = [&] {
-            if constexpr (side == OrderSide::BUY)
-                return orderbook.bids();
-            return orderbook.asks();
-        }();
+        auto& levels = get_side<side>(orderbook);
 
         // TODO Should we say while (!levels.is_empty())?
         auto level_it = levels.begin();
-        while ((level_it != levels.end()) & (volume > Quantity { 0 })) {
+        while (int(level_it != levels.end()) & int(volume > Quantity { 0 })) {
             auto& [level_price, level] = *level_it;
             auto order_it = level.begin();
 
             while (order_it != level.end()) {
                 auto quantity = volume;
-                if (order_it->is_aon() | (order_it->leaves_quantity() < volume))
+                if (int(order_it->is_aon()) | int(order_it->leaves_quantity() < volume))
                     quantity = order_it->leaves_quantity();
 
                 event_handler().on_execute_order(*order_it, price, quantity);
 
                 // TODO remove this and include it in the reduce order
-                orderbook.update_last_matching_price<side>(price);
+                orderbook.template update_last_matching_price<side>(price);
 
                 reduce_order(*order_it, quantity);
 
@@ -796,7 +810,7 @@ private:
             if (new_trailing_price >= old_trailing_price) return;
         }
 
-        auto levels = orderbook.template levels<LevelsType::TRAILING_STOP, side>();
+        auto& levels = orderbook.template levels<LevelsType::TRAILING_STOP, side>();
         auto prev_level_it = levels.begin();
         for (auto level_it = levels.begin(); level_it != levels.end(); ) {
             bool updated = false;
@@ -845,7 +859,7 @@ private:
 
     constexpr auto& orderbook_at(SymbolId id) noexcept {
         assert(id.value < orderbooks().size() && "No orderbook with the given ID exists in the matching engine");
-        return orderbooks()[id];
+        return orderbooks()[id.value];
     }
 
     constexpr bool is_symbol_taken(Symbol symbol) const noexcept {
@@ -875,6 +889,41 @@ private:
     std::vector<OrderBook> _orderbooks;
 
     HashMap<OrderId, OrderIterator> _orders { };
+
+
+public:
+
+    template <OrderSide side, typename T>
+    constexpr bool try_trigger_stop_orders(OrderBook& orderbook, T&& level) noexcept {
+        (void)orderbook;
+        (void)level;
+        return true;
+    }
+
+    template <OrderType type, OrderSide side>
+    constexpr bool try_trigger_stop_order(OrderBook& orderbook, Order& order) noexcept {
+        (void)orderbook;
+        (void)order;
+        return true;
+    }
+
+    constexpr bool try_trigger_stop_orders(OrderBook& orderbook) noexcept {
+        (void)orderbook;
+        return true;
+    }
+
+    template <OrderSide side, typename T>
+    constexpr void try_match_aon(OrderBook& orderbook, Order& order, T& level) noexcept {
+        (void)orderbook;
+        (void)order;
+        (void)level;
+    }
+
+    template <OrderSide side>
+    constexpr void match_limit_order(OrderBook& orderbook, Order& order) noexcept {
+        (void)orderbook;
+        (void)order;
+    }
 };
 
 }

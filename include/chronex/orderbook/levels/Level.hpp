@@ -31,6 +31,16 @@ public:
         orders.erase(it);
     }
 
+    template <typename Iter>
+    constexpr std::remove_reference_t<Iter> prev(Iter&& it) {
+        return std::prev(it);
+    }
+
+    template <typename Iter>
+    constexpr std::remove_reference_t<Iter> next(Iter&& it) {
+        return std::next(it);
+    }
+
     [[nodiscard]] constexpr size_t size() const noexcept { return orders.size(); }
     [[nodiscard]] constexpr bool is_empty() const noexcept { return size() == 0; }
 

@@ -17,7 +17,7 @@ public:
     template <typename Self>
     constexpr auto& asks(this Self&& self) noexcept { return self._asks; }
 
-    template <typename Self, OrderSide side>
+    template <OrderSide side, typename Self>
     constexpr auto& levels(this Self&& self) noexcept {
         if constexpr (side == OrderSide::BUY) {
             return self.bids();

@@ -28,7 +28,11 @@ public:
     // TODO cache the best iterator and when it gets deleted, use std::next.
     //  This is to maintain an O(1) lookup for the best value instead of O(log(N))
     template <typename Self>
-    constexpr auto& best(this Self&& self) noexcept { return self.map().begin()->second; }
+    constexpr auto best(this Self&& self) noexcept { return self.map().begin(); }
+
+    constexpr auto add_level(const Price price) {
+        return map().emplace(price, LevelType { });
+    }
 
     template <typename T, typename Iter>
     constexpr auto add_order(T&& order, Iter level_it) {
@@ -36,7 +40,7 @@ public:
 
         ++_orders_count;
 
-        return *level_it.add_order(std::forward<T>(order));
+        return level_it->second.add_order(std::forward<T>(order));
     }
 
     template <typename T>
@@ -74,16 +78,16 @@ public:
     [[nodiscard]] constexpr auto find(this Self&& self, Price price) noexcept { return self.map().find(price); }
 
     template <typename Self>
-    [[nodiscard]] constexpr auto& begin(this Self&& self) noexcept { return self.map().begin();  }
+    [[nodiscard]] constexpr auto begin(this Self&& self) noexcept { return self.map().begin();  }
 
     template <typename Self>
-    [[nodiscard]] constexpr auto& end(this Self&& self) noexcept { return self.map().end();  }
+    [[nodiscard]] constexpr auto end(this Self&& self) noexcept { return self.map().end();  }
 
     template <typename Self>
-    [[nodiscard]] constexpr auto& rbegin(this Self&& self) noexcept { return self.map().rbegin();  }
+    [[nodiscard]] constexpr auto rbegin(this Self&& self) noexcept { return self.map().rbegin();  }
 
     template <typename Self>
-    [[nodiscard]] constexpr auto& rend(this Self&& self) noexcept { return self.map().rend();  }
+    [[nodiscard]] constexpr auto rend(this Self&& self) noexcept { return self.map().rend();  }
 
 private:
 
