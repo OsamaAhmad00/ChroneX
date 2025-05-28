@@ -56,11 +56,15 @@ class LinkedList : private Allocator<LinkedListNode<T>> {
         using pointer = std::conditional_t<std::is_const_v<NodeType>, const T*, T*>;
         using reference = std::conditional_t<std::is_const_v<NodeType>, const T&, T&>;
 
+        constexpr explicit Iterator() noexcept : _node(nullptr) { }
+
         constexpr explicit Iterator(NodeType* node) noexcept : _node(node) { }
 
         template <typename OtherNode, typename OtherNext, typename OtherPrev>
         explicit constexpr Iterator(const Iterator<OtherNode, OtherNext, OtherPrev>& it) noexcept
             : _node(it.node) { }
+
+        constexpr bool is_null() const noexcept { return _node == nullptr; };
 
         constexpr reference operator* () const noexcept { return  _node->data(); }
         constexpr pointer   operator->() const noexcept { return &_node->data(); }
@@ -132,7 +136,7 @@ class LinkedList : private Allocator<LinkedListNode<T>> {
         --_size;
     }
 
-    constexpr void copy_back(const LinkedList& other) {
+    constexpr void copy_back(const LinkedList& other) requires (std::is_copy_constructible_v<T>) {
         for (auto it = other.begin(); it != other.end(); ++it) {
             push_back(*it);
         }
@@ -175,7 +179,7 @@ public:
         tail->set_next(&dummy_tail());
     }
 
-    constexpr LinkedList(const LinkedList& other) : LinkedList() { copy_back(other); }
+    constexpr LinkedList(const LinkedList& other) requires (std::is_copy_constructible_v<T>) : LinkedList() { copy_back(other); }
 
     constexpr LinkedList(LinkedList&& other) noexcept : LinkedList() { move(std::move(other)); }
 

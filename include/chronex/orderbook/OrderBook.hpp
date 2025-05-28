@@ -53,7 +53,7 @@ public:
 
     template <LevelsType type, OrderSide side, typename Self>
     constexpr auto& levels(this Self&& self) noexcept {
-        return self.template levels<type>.template levels<side>();
+        return self.template levels<type>().template levels<side>();
     }
 
     template <LevelsType type, typename Self>
@@ -89,7 +89,9 @@ public:
             if constexpr (should_report()) {
                 event_handler().template on_price_level_add<type, side>(*this, order);
             }
-            level_it = levels.add_level(order.price());
+            auto [new_it, success] = levels.add_level(order.price());
+            level_it = new_it;
+            assert(success && "Price level already exists, but you think it doesn't!");
         }
 
         if constexpr (should_report()) {
@@ -149,7 +151,7 @@ private:
 
     constexpr auto& orders() noexcept { return *_orders; }
 
-    [[nodiscard]] constexpr bool should_report() const noexcept {
+    [[nodiscard]] constexpr static bool should_report() noexcept {
         // Use this to help the compiler determine at compile-time that
         //  there is no need to call the event handler. Even though it
         //  will probably figure it out, since we're only storing a pointer
@@ -178,6 +180,55 @@ private:
     Symbol _symbol { };
 
     EventHandler* _event_handler = nullptr;
+
+
+public:
+
+    template <OrderSide side>
+    constexpr void update_last_matching_price(Price price) noexcept {
+        (void)price;
+    }
+
+    template <OrderType type, OrderSide side>
+    constexpr void execute_quantity(Order& order, Quantity quantity, Price price) noexcept {
+        (void)order;
+        (void)quantity;
+        (void)price;
+    }
+
+    template <OrderType type, OrderSide side>
+    constexpr void reduce_order(Order& order, Quantity quantity) noexcept {
+        (void)order;
+        (void)quantity;
+    }
+
+    constexpr void execute_quantity(Order& order, Quantity quantity) noexcept {
+        (void)order;
+        (void)quantity;
+    }
+
+    constexpr void reset_matching_prices() noexcept { }
+
+    template <OrderSide side>
+    Price calculate_trailing_stop_price(Order& order) noexcept {
+        (void)order;
+        return Price::invalid();
+    }
+
+    template <OrderType type, OrderSide side>
+    void remove_order(Order& order) noexcept {
+        (void)order;
+    }
+
+    template <OrderType type, OrderSide side>
+    void replace_order(Order& order, Order& new_order) noexcept {
+        (void)order;
+        (void)new_order;
+    }
+
+    template <OrderSide side>
+    constexpr Price get_market_price() const noexcept { return Price::invalid(); }
+
 };
 
 }

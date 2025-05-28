@@ -8,27 +8,33 @@ namespace chronex {
 
 struct Order {
 
+    // TODO remove after testing
+    Order() noexcept = default;
+
     [[nodiscard]] constexpr OrderId id() const noexcept { return _id; }
 
     [[nodiscard]] SymbolId symbol_id() const noexcept { return _symbol_id; }
 
-    [[nodiscard]] OrderType type() const noexcept { return _type; }
-    [[nodiscard]] bool is_market_order() const noexcept { return is_market(type()); }
-    [[nodiscard]] bool is_limit_order() const noexcept { return is_limit(type()); }
-    [[nodiscard]] bool is_stop_order() const noexcept { return type() == OrderType::STOP; }
-    [[nodiscard]] bool is_stop_limit_order() const noexcept { return type() == OrderType::STOP_LIMIT; }
-    [[nodiscard]] bool is_trailing_stop_order() const noexcept { return type() == OrderType::TRAILING_STOP; }
-    [[nodiscard]] bool is_trailing_stop_limit_order() const noexcept { return type() == OrderType::TRAILING_STOP_LIMIT; }
+    [[nodiscard]] constexpr OrderType type() const noexcept { return _type; }
+    [[nodiscard]] constexpr bool is_market_order() const noexcept { return is_market(type()); }
+    [[nodiscard]] constexpr bool is_limit_order() const noexcept { return is_limit(type()); }
+    [[nodiscard]] constexpr bool is_stop_order() const noexcept { return type() == OrderType::STOP; }
+    [[nodiscard]] constexpr bool is_stop_limit_order() const noexcept { return type() == OrderType::STOP_LIMIT; }
+    [[nodiscard]] constexpr bool is_trailing_stop_order() const noexcept { return type() == OrderType::TRAILING_STOP; }
+    [[nodiscard]] constexpr bool is_trailing_stop_limit_order() const noexcept { return type() == OrderType::TRAILING_STOP_LIMIT; }
 
-    [[nodiscard]] OrderSide side() const noexcept { return _side; }
-    [[nodiscard]] bool is_buy_order() const noexcept { return side() == OrderSide::BUY; }
-    [[nodiscard]] bool is_sell_order() const noexcept { return side() == OrderSide::SELL; }
+    constexpr void mark_triggered() noexcept { _type = (OrderType) ((int)_type | (int)OrderTypeBits::Triggered ); }
+    constexpr void set_stop_and_trailing_stop_prices(const Price) { }
 
-    [[nodiscard]] TimeInForce time_in_force() const noexcept { return _time_in_force; }
-    [[nodiscard]] bool is_ioc() const noexcept { return time_in_force() == TimeInForce::IOC; }
-    [[nodiscard]] bool is_fok() const noexcept { return time_in_force() == TimeInForce::FOK; }
-    [[nodiscard]] bool is_gtc() const noexcept { return time_in_force() == TimeInForce::GTC; }
-    [[nodiscard]] bool is_aon() const noexcept { return time_in_force() == TimeInForce::AON; }
+    [[nodiscard]] constexpr OrderSide side() const noexcept { return _side; }
+    [[nodiscard]] constexpr bool is_buy_order() const noexcept { return side() == OrderSide::BUY; }
+    [[nodiscard]] constexpr bool is_sell_order() const noexcept { return side() == OrderSide::SELL; }
+
+    [[nodiscard]] constexpr TimeInForce time_in_force() const noexcept { return _time_in_force; }
+    [[nodiscard]] constexpr bool is_ioc() const noexcept { return time_in_force() == TimeInForce::IOC; }
+    [[nodiscard]] constexpr bool is_fok() const noexcept { return time_in_force() == TimeInForce::FOK; }
+    [[nodiscard]] constexpr bool is_gtc() const noexcept { return time_in_force() == TimeInForce::GTC; }
+    [[nodiscard]] constexpr bool is_aon() const noexcept { return time_in_force() == TimeInForce::AON; }
 
     [[nodiscard]] constexpr Quantity leaves_quantity() const noexcept { return _leaves_quantity; }
     [[nodiscard]] constexpr Quantity filled_quantity() const noexcept { return _filled_quantity; }
@@ -52,10 +58,11 @@ struct Order {
     [[nodiscard]] constexpr TrailingOffset trailing_distance() const noexcept { return _trailing_distance; }
     [[nodiscard]] constexpr TrailingOffset trailing_step() const noexcept { return _trailing_step; }
 
-    template <concepts::OrderBook OrderBook>
-    bool execute(OrderBook& orderbook) const noexcept {
-        return static_cast<bool>(&orderbook);
-    }
+    constexpr void set_price(const Price& price) noexcept { _price = price; }
+    constexpr void set_stop_price(const Price& price) noexcept { _stop_price = price; }
+
+    template <OrderSide side>
+    constexpr void add_slippage() noexcept { }
 
     Order(const Order&) noexcept = delete;
     Order& operator=(const Order&) noexcept = delete;
