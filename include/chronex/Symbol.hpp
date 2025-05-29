@@ -15,6 +15,7 @@ struct SymbolId {
 struct Symbol {
     SymbolId id;
     char name[8];
+    constexpr static Symbol invalid() noexcept { return Symbol { SymbolId::invalid(), "" }; }
 };
 
 }

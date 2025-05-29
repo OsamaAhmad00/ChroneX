@@ -1,15 +1,46 @@
 #pragma once
 
 #include <chronex/orderbook/OrderUtils.hpp>
-#include <chronex/concepts/OrderBook.hpp>
 #include <chronex/Symbol.hpp>
 
 namespace chronex {
 
 struct Order {
 
-    // TODO remove after testing
-    Order() noexcept = default;
+    // TODO make it private after testing
+    Order(
+        const OrderId id,
+        const SymbolId symbol_id,
+        const OrderType type,
+        const OrderSide side,
+        const TimeInForce time_in_force,
+        const Quantity leaves_quantity,
+        const Quantity filled_quantity,
+        const Quantity max_visible_quantity,
+        const Price price,
+        const Price stop_price,
+        const Price initial_stop_price,
+        const Price slippage,
+        const TrailingOffset trailing_distance,
+        const TrailingOffset trailing_step
+    ) noexcept :
+        _id(id),
+        _symbol_id(symbol_id),
+        _type(type),
+        _side(side),
+        _time_in_force(time_in_force),
+        _leaves_quantity(leaves_quantity),
+        _filled_quantity(filled_quantity),
+        _max_visible_quantity(max_visible_quantity),
+        _price(price),
+        _stop_price(stop_price),
+        _initial_stop_price(initial_stop_price),
+        _slippage(slippage),
+        _trailing_distance(trailing_distance),
+        _trailing_step(trailing_step)
+    {
+
+    }
 
     [[nodiscard]] constexpr OrderId id() const noexcept { return _id; }
 
@@ -22,9 +53,6 @@ struct Order {
     [[nodiscard]] constexpr bool is_stop_limit_order() const noexcept { return type() == OrderType::STOP_LIMIT; }
     [[nodiscard]] constexpr bool is_trailing_stop_order() const noexcept { return type() == OrderType::TRAILING_STOP; }
     [[nodiscard]] constexpr bool is_trailing_stop_limit_order() const noexcept { return type() == OrderType::TRAILING_STOP_LIMIT; }
-
-    constexpr void mark_triggered() noexcept { _type = (OrderType) ((int)_type | (int)OrderTypeBits::Triggered ); }
-    constexpr void set_stop_and_trailing_stop_prices(const Price) { }
 
     [[nodiscard]] constexpr OrderSide side() const noexcept { return _side; }
     [[nodiscard]] constexpr bool is_buy_order() const noexcept { return side() == OrderSide::BUY; }
@@ -58,8 +86,13 @@ struct Order {
     [[nodiscard]] constexpr TrailingOffset trailing_distance() const noexcept { return _trailing_distance; }
     [[nodiscard]] constexpr TrailingOffset trailing_step() const noexcept { return _trailing_step; }
 
+    [[nodiscard]] constexpr bool is_valid() const noexcept { return _id != OrderId::invalid(); }
+
     constexpr void set_price(const Price& price) noexcept { _price = price; }
     constexpr void set_stop_price(const Price& price) noexcept { _stop_price = price; }
+
+    constexpr void mark_triggered() noexcept { _type = (OrderType) ((int)_type | (int)OrderTypeBits::Triggered ); }
+    constexpr void set_stop_and_trailing_stop_prices(const Price) { }
 
     template <OrderSide side>
     constexpr void add_slippage() noexcept { }

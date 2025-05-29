@@ -34,9 +34,11 @@ public:
     using OrderIterator = typename PriceLevels<Order>::OrderIterator;
 
     constexpr OrderBook(HashMap<OrderId, OrderIterator>* orders, const Symbol symbol, EventHandler* event_handler) noexcept
-        : _orders(orders), _symbol(symbol), _event_handler(event_handler) {
+        : _orders(orders), _symbol(symbol), _event_handler(event_handler) { }
 
-    }
+    constexpr OrderBook() : OrderBook(nullptr, Symbol::invalid() , nullptr) { };
+
+    [[nodiscard]] constexpr bool is_valid() const noexcept { return symbol_id() != SymbolId::invalid(); }
 
     template <LevelsType type, typename Self>
     [[nodiscard]] constexpr auto& levels(this Self&& self) noexcept {
@@ -135,6 +137,8 @@ public:
 
     [[nodiscard]] constexpr auto& symbol() const noexcept { return _symbol; }
 
+    [[nodiscard]] constexpr auto& symbol_id() const noexcept { return symbol().id; }
+
 private:
 
     constexpr void add_order_to_map(OrderId id, OrderIterator order_it) noexcept {
@@ -220,8 +224,8 @@ public:
         (void)order;
     }
 
-    template <OrderType type, OrderSide side>
-    void replace_order(Order& order, Order& new_order) noexcept {
+    template <OrderType type, OrderSide side, concepts::Order T>
+    void replace_order(Order& order, T&& new_order) noexcept {
         (void)order;
         (void)new_order;
     }
