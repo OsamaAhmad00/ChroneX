@@ -43,12 +43,12 @@ public:
 
     constexpr void add_new_orderbook(Symbol symbol) {
         event_handler().on_add_new_orderbook(symbol);
-        add_existing_orderbook(OrderBook { symbol, &event_handler(), &orders() }, false);
+        add_existing_orderbook(OrderBook { &orders(), symbol, &event_handler() }, false);
     }
 
     template <typename T>
     constexpr void add_existing_orderbook(T&& orderbook, bool report = true) {
-        assert(!is_symbol_taken(symbol) &&
+        assert(!is_symbol_taken(orderbook.symbol()) &&
             "Symbol with the same ID already exists in the matching engine");
 
         auto symbol = orderbook.symbol();
@@ -429,13 +429,8 @@ private:
 
     template <OrderSide side>
     constexpr void match_order(OrderBook& orderbook, Order& order) noexcept {
-        auto& opposite = [&] -> auto& {
-            if constexpr (side == OrderSide::BUY) {
-                return orderbook.asks();
-            } else {
-                return orderbook.bids();
-            }
-        }();
+        auto& opposite = get_opposite_side<side>(orderbook);
+
         while (!opposite.is_empty()) {
             auto& [price, level] = *opposite.best();
 
@@ -510,12 +505,15 @@ private:
 
     template <OrderSide side>
     constexpr auto& get_side(OrderBook& orderbook) noexcept {
-        return orderbook.bids();
+        return orderbook.template levels<LevelsType::PRICE, side>();
     }
 
-    template <>
-    constexpr auto& get_side<OrderSide::SELL>(OrderBook& orderbook) noexcept {
-        return orderbook.asks();
+    template <OrderSide side>
+    constexpr auto& get_opposite_side(OrderBook& orderbook) noexcept {
+        if constexpr (side == OrderSide::BUY)
+            return get_side<OrderSide::SELL>(orderbook);
+        else
+            return get_side<OrderSide::BUY>(orderbook);
     }
 
     template <OrderSide side>
@@ -524,14 +522,7 @@ private:
         //  ability to have historical data about the
         //  original price. keep track of the original
         //  price
-        auto& opposite = get_side<side>(orderbook);
-        // auto& opposite = [&] {
-        //     if constexpr (side == OrderSide::BUY) {
-        //         return orderbook.asks();
-        //     } else {
-        //         return orderbook.bids();
-        //     }
-        // }();
+        auto& opposite = get_opposite_side<side>(orderbook);
 
         if (opposite.is_empty()) return;
 
@@ -638,12 +629,10 @@ private:
 
         match_market_order<side>(orderbook, order);
 
-        event_handler().on_delete_order(order);
-
-        orders().erase(order.id());
-
         // Remove only after we're done using it
         // Remove the order from its stop order level and create a market
+        event_handler().on_delete_order(order);
+        orders().erase(order.id());
         orderbook.template remove_order<type, side>(order);
     }
 
@@ -857,14 +846,17 @@ private:
         orderbook.reset_matching_prices();
     }
 
-    constexpr auto& orderbook_at(SymbolId id) noexcept {
+    [[nodiscard]] constexpr auto& orderbook_at(SymbolId id) noexcept {
         assert(id.value < orderbooks().size() && "No orderbook with the given ID exists in the matching engine");
         return orderbooks()[id.value];
     }
 
-    constexpr bool is_symbol_taken(Symbol symbol) const noexcept {
-        auto id = symbol.id.value;
-        return id < orderbooks().size() && orderbooks()[id].symbol_id() != SymbolId::invalid();
+    [[nodiscard]] constexpr bool is_symbol_taken(uint64_t id) const noexcept {
+        return id < orderbooks().size() && orderbooks()[id].is_valid();
+    }
+
+    [[nodiscard]] constexpr bool is_symbol_taken(const Symbol symbol) const noexcept {
+        return is_symbol_taken(symbol.id.value);
     }
 
     template <OrderSide side1>
@@ -876,12 +868,17 @@ private:
         }
     }
 
-    constexpr auto& orders() noexcept { return _orders; }
+    template <typename Self>
+    constexpr auto& orders(this Self&& self) noexcept { return self._orders; }
 
-    constexpr auto& order_by_id(OrderId id) noexcept { return orders()[id]; }
+    template <typename Self>
+    constexpr auto& order_by_id(this Self&& self, OrderId id) noexcept { return self.orders()[id]; }
 
-    EventHandler& event_handler() noexcept { return _event_handler; }
-    std::vector<OrderBook>& orderbooks() noexcept { return _orderbooks; }
+    template <typename Self>
+    auto& event_handler(this Self&& self) noexcept { return self._event_handler; }
+
+    template <typename Self>
+    auto& orderbooks(this Self&& self) noexcept { return self._orderbooks; }
 
     bool _is_matching_enabled = true;
 

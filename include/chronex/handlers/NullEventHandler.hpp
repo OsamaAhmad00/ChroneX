@@ -37,10 +37,10 @@ public:
     void on_stop_limit_order_trigger(T&) noexcept { };
     template <OrderType type, OrderSide side, typename T>
     void on_stop_limit_order_remove(T&) noexcept { };
-    // template <OrderType type, OrderSide side, typename T>
-    // void set_stop_and_trailing_stop_prices(T&) noexcept { };
-    // template <OrderType type, OrderSide side, typename T>
-    // void set_stop_and_trailing_stop_prices(T&) noexcept { };
+    template <typename T>
+    void on_add_new_orderbook(T&) noexcept { };
+    template <typename T>
+    void on_add_orderbook(T&) noexcept { };
 };
 
 }

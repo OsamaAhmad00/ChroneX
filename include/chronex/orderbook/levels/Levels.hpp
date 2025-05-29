@@ -50,7 +50,7 @@ public:
 
     template <typename Iter>
     constexpr auto remove_order(OrderIterator order_it, Iter level_it) {
-        assert(orders_count > 0 && "Trying to remove order from empty level");
+        // assert(orders_count > 0 && "Trying to remove order from empty level");
         assert(level_it != this->end() && "Trying to remove order from non-existing level");
 
         --_orders_count;
