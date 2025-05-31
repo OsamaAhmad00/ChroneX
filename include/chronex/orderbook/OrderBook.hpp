@@ -40,6 +40,8 @@ public:
 
     [[nodiscard]] constexpr bool is_valid() const noexcept { return symbol_id() != SymbolId::invalid(); }
 
+    constexpr void invalidate() noexcept { _symbol.id = SymbolId::invalid(); }
+
     template <LevelsType type, typename Self>
     [[nodiscard]] constexpr auto& levels(this Self&& self) noexcept {
         if constexpr (type == LevelsType::PRICE) {
@@ -139,6 +141,14 @@ public:
 
     [[nodiscard]] constexpr auto& symbol_id() const noexcept { return symbol().id; }
 
+    OrderBook(const OrderBook&) = default;
+    OrderBook(OrderBook&&) = default;
+
+    OrderBook& operator=(const OrderBook&) = default;
+    OrderBook& operator=(OrderBook&&) = default;
+
+    ~OrderBook() { clear(); }
+
 private:
 
     constexpr void add_order_to_map(OrderId id, OrderIterator order_it) noexcept {
@@ -200,12 +210,6 @@ public:
         (void)price;
     }
 
-    template <OrderType type, OrderSide side>
-    constexpr void reduce_order(Order& order, Quantity quantity) noexcept {
-        (void)order;
-        (void)quantity;
-    }
-
     constexpr void execute_quantity(Order& order, Quantity quantity) noexcept {
         (void)order;
         (void)quantity;
@@ -214,24 +218,71 @@ public:
     constexpr void reset_matching_prices() noexcept { }
 
     template <OrderSide side>
-    Price calculate_trailing_stop_price(Order& order) noexcept {
+    constexpr Price calculate_trailing_stop_price(Order& order) noexcept {
         (void)order;
         return Price::invalid();
     }
 
-    template <OrderType type, OrderSide side>
-    void remove_order(Order& order) noexcept {
+    template <LevelsType type, OrderSide side>
+    constexpr void reduce_order(Order& order, const Quantity quantity) noexcept {
+        (void)order;
+        (void)quantity;
+    }
+
+    template <LevelsType type, OrderSide side>
+    constexpr void modify_order(Order& order, const Quantity quantity, const Price price, const bool mitigate) noexcept {
+        (void)order;
+        (void)quantity;
+        (void)price;
+        (void)mitigate;
+    }
+
+    template <LevelsType type, OrderSide side>
+    constexpr void remove_order(Order& order) noexcept {
         (void)order;
     }
 
-    template <OrderType type, OrderSide side, concepts::Order T>
-    void replace_order(Order& order, T&& new_order) noexcept {
+    template <LevelsType type, OrderSide side, concepts::Order T>
+    constexpr void replace_order(Order& order, T&& new_order) noexcept {
+        // Replace atomically. Since the matching engine is single-threaded,
+        //  it can do it by performing remove then add, without worrying
+        //  about other operations happening between remove and add
+        // TODO have the event handler report replacement instead of removal and addition
+        // TODO extract the duplication between this and reduce_order, modify_order, remove_order, and replace_order
         (void)order;
         (void)new_order;
     }
 
     template <OrderSide side>
-    constexpr Price get_market_price() const noexcept { return Price::invalid(); }
+    [[nodiscard]] constexpr Price get_market_price() const noexcept { return Price::invalid(); }
+
+    template <OrderType type, OrderSide side>
+    constexpr void unlink_order(Order& order) noexcept {
+        (void)order;
+    }
+
+    template <LevelsType type, OrderSide side>
+    constexpr void clear_levels() noexcept {
+        auto& l = levels<type, side>();
+        for (auto& [_, level] : l) {
+            for (auto& order : level) {
+                orders().erase(order.id());
+            }
+        }
+        l.clear();
+    }
+
+    template <LevelsType type>
+    constexpr void clear_levels() noexcept {
+        clear_levels<type, OrderSide::BUY>();
+        clear_levels<type, OrderSide::SELL>();
+    }
+
+    constexpr void clear() noexcept {
+        clear_levels<LevelsType::PRICE>();
+        clear_levels<LevelsType::STOP>();
+        clear_levels<LevelsType::TRAILING_STOP>();
+    }
 
 };
 

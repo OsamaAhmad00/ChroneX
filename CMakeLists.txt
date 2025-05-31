@@ -16,7 +16,10 @@ endif()
 
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 
-add_executable(ChroneX main.cpp)
+add_executable(ChroneX
+    main.cpp
+    src/orderbook/Order.cpp
+)
 
 target_compile_options(ChroneX PRIVATE -Wall -Werror -Wextra -Wpedantic -Wconversion -Wshadow)
 

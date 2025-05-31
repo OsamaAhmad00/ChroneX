@@ -59,6 +59,18 @@ public:
     [[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return orders.rbegin(); }
     [[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return orders.rend(); }
 
+    Level() = default;
+
+    Level(const Level&) = delete;
+
+    Level& operator=(const Level&) = delete;
+
+    Level(Level&&) = default;
+
+    Level& operator=(Level&&) = default;
+
+    ~Level() = default;
+
 private:
 
     // TODO: experiment with other types including different lists and arrays as well

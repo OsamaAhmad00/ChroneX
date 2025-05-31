@@ -47,7 +47,7 @@ public:
     }
 
     template <typename T>
-    constexpr void add_existing_orderbook(T&& orderbook, bool report = true) {
+    constexpr void add_existing_orderbook(T&& orderbook, const bool report = true) {
         assert(!is_symbol_taken(orderbook.symbol()) &&
             "Symbol with the same ID already exists in the matching engine");
 
@@ -58,6 +58,7 @@ public:
             orderbooks().resize(id.value + 1);
         }
 
+        // TODO remove this conditional
         if (report) {
             event_handler().on_add_orderbook(symbol);
         }
@@ -70,7 +71,7 @@ public:
 
         auto& orderbook = orderbook_at(symbol.id);
 
-        event_handler().on_remove_symbol(symbol);
+        event_handler().on_remove_orderbook(orderbook);
 
         orderbook.clear();
         orderbook.invalidate();
@@ -87,23 +88,46 @@ public:
 
     template <OrderSide side, concepts::Order T>
     constexpr void add_order(T&& order) {
-        assert(order.is_valid() && "Order is invalid");
-
+        // Triggered types shouldn't be passed to this function.
+        //  This function resolves newly added orders. Being
+        //  triggered means it was just being processed,
+        //  and the type information should be present by now.
         switch (order.type()) {
             case OrderType::MARKET:
-                return add_market_order<side>(std::forward<T>(order));
+                return add_order<side, OrderType::MARKET>(std::forward<T>(order));
             case OrderType::LIMIT:
-                return add_limit_order<side>(std::forward<T>(order));
+                return add_order<side, OrderType::LIMIT>(std::forward<T>(order));
             case OrderType::STOP:
-                return add_stop_order<OrderType::STOP, side>(std::forward<T>(order));
+                return add_order<side, OrderType::STOP>(std::forward<T>(order));
             case OrderType::TRAILING_STOP:
-                return add_stop_order<OrderType::TRAILING_STOP, side>(std::forward<T>(order));
+                return add_order<side, OrderType::TRAILING_STOP>(std::forward<T>(order));
             case OrderType::STOP_LIMIT:
-                return add_stop_limit_order<OrderType::STOP_LIMIT, side>(std::forward<T>(order));
+                return add_order<side, OrderType::STOP_LIMIT>(std::forward<T>(order));
             case OrderType::TRAILING_STOP_LIMIT:
-                return add_stop_limit_order<OrderType::TRAILING_STOP_LIMIT, side>(std::forward<T>(order));
+                return add_order<side, OrderType::TRAILING_STOP_LIMIT>(std::forward<T>(order));
             default:
                 assert(false && "Wrong order type to use here");
+        }
+    }
+
+    template <OrderSide side, OrderType type, concepts::Order T>
+    constexpr void add_order(T&& order) {
+        assert(order.is_valid() && "Order is invalid");
+
+        if constexpr (is_market(type)) {
+            return add_market_order<side>(std::forward<T>(order));
+        } else if constexpr (is_limit(type)) {
+            return add_limit_order<side>(std::forward<T>(order));
+        } else if constexpr (type == OrderType::STOP) {
+            return add_stop_order<OrderType::STOP, side>(std::forward<T>(order));
+        } else if constexpr (type == OrderType::TRAILING_STOP) {
+            return add_stop_order<OrderType::TRAILING_STOP, side>(std::forward<T>(order));
+        } else if constexpr (type == OrderType::STOP_LIMIT) {
+            return add_stop_limit_order<OrderType::STOP_LIMIT, side>(std::forward<T>(order));
+        } else if constexpr (type == OrderType::TRAILING_STOP_LIMIT) {
+            return add_stop_limit_order<OrderType::TRAILING_STOP_LIMIT, side>(std::forward<T>(order));
+        } else {
+            assert(false && "Wrong order type to use here");
         }
     }
 
@@ -132,11 +156,13 @@ public:
         //  the time priority here. If the order is to be filled (possibly partially),
         //  then its price level is better than any order sitting in the orderbook.
         //  Otherwise, it'll not execute and will be put at the end of the queue
-        if (is_matching_enabled())
+        if (is_matching_enabled()) {
             match_limit_order<side>(orderbook, order);
+        }
 
         try_add_limit_order<OrderType::LIMIT, side>(orderbook, std::forward<T>(order));
 
+        // TODO perform this only if the order is added?
         perform_post_order_processing(orderbook);
     }
 
@@ -150,28 +176,19 @@ public:
 
         event_handler().template on_stop_order_add<type, side>(order);
 
-        if (is_matching_enabled()) {
-            const bool triggered = try_trigger_stop_order<type, side>(orderbook, order);
-            if (triggered) {
-                return;
-            }
+        if (int(is_matching_enabled()) & int(should_trigger<side>(orderbook, order))) {
+            return trigger_stop_order<type, side>(orderbook, order);
         }
 
-        if (!order.is_fully_filled()) {
-            if constexpr (type == OrderType::STOP) {
-                orderbook.template add_order<LevelsType::STOP, side>(std::forward<T>(order));
-            } else {
-                orderbook.template add_order<LevelsType::TRAILING_STOP, side>(std::forward<T>(order));
-            }
-        } else {
-            event_handler().template on_stop_order_remove<type, side>(order);
-        }
+        insert_stop_order<type, side>(orderbook, std::forward<T>(order));
 
+        // TODO perform this only if the order is added?
         perform_post_order_processing(orderbook);
     }
 
     template <OrderType type, OrderSide side, concepts::Order T>
     constexpr void add_stop_limit_order(T&& order) {
+        // TODO refactor similarities with add_stop_order
         auto& orderbook = orderbook_at(order.symbol_id());
 
         if constexpr (type == OrderType::TRAILING_STOP_LIMIT) {
@@ -181,97 +198,45 @@ public:
 
         event_handler().template on_stop_limit_order_add<type, side>(order);
 
-        if (is_matching_enabled()) {
-            auto stop_trigger_price = orderbook.template get_market_price<side>();
-
-            auto should_trigger = [&] {
-                if constexpr (side == OrderSide::BUY)
-                    return stop_trigger_price >= order.stop_price();
-                return stop_trigger_price <= order.stop_price();
-            }();
-
-            if (should_trigger) {
-                order.mark_triggered();
-                event_handler().template on_stop_limit_order_trigger<type, side>(order);
-
-                match_order<side>(orderbook, order);
-                try_add_limit_order<type, side>(orderbook, std::forward<T>(order));
-
-                perform_post_order_processing(orderbook);
-
-                return;
-            }
+        if (int(is_matching_enabled()) & int(should_trigger<side>(orderbook, order))) {
+            return trigger_stop_order<type, side>(orderbook, order);
         }
 
-        if (!order.is_fully_filled()) {
-            if constexpr (type == OrderType::STOP_LIMIT) {
-                orderbook.template add_order<LevelsType::STOP, side>(std::forward<T>(order));
-            } else {
-                orderbook.template add_order<LevelsType::TRAILING_STOP, side>(std::forward<T>(order));
-            }
-        } else {
-            event_handler().template on_stop_limit_order_remove<type, side>(order);
-        }
+        insert_stop_order<type, side>(orderbook, std::forward<T>(order));
 
         // TODO should this be here or after adding the order to the orderbook only?
         perform_post_order_processing(orderbook);
     }
 
-    // TODO make versions that take the orderbook and the order directly, and refactor
+# define ADD_ORDERBOOK_OP_PROXY(OP_NAME) \
+    template <typename... Args>                                                                                 \
+    constexpr void OP_NAME(const OrderId id, Args&&... args) noexcept {                                         \
+        auto [order, orderbook] = get_order_and_orderbook(id);                                                  \
+                                                                                                                \
+        auto func = [&] <OrderType type, OrderSide side> {                                                      \
+            constexpr auto levels_type = order_type_to_levels_type<type>();                                     \
+            OP_NAME<levels_type, side>(orderbook.get(), order.get(), std::forward<Args>(args)...);              \
+        };                                                                                                      \
+                                                                                                                \
+        resolve_type_and_side_then_call(order.get(), func);                                                     \
+                                                                                                                \
+        perform_post_order_processing(orderbook);                                                               \
+    }                                                                                                           \
+                                                                                                                \
+    template <LevelsType type, OrderSide side, typename... Args>                                                \
+    constexpr void OP_NAME(OrderBook& orderbook, Order& order, Args&&... args) noexcept {                       \
+        assert(quantity.value > 0 && "Quantity must be greater than zero");                                     \
+        /* This will do the reporting and the removal of the orders from the hash map if needed */              \
+        orderbook.template OP_NAME<type, side>(order, std::forward<Args>(args)...);                             \
+    }                                                                                                           \
 
-    constexpr void reduce_order(const OrderId id, const Quantity quantity) noexcept {
-        // TODO extract the duplication between this and reduce_order, modify_order, remove_order, and replace_order
-        assert(quantity.value > 0 && "Quantity must be greater than zero");
-        auto [order, orderbook] = get_order_and_orderbook(id);
-        // This will do the reporting and the removal of the orders from the hash map if needed
-        auto reduce_func = [&] <OrderType type, OrderSide side> {
-            orderbook.get().template reduce_order<type, side>(order, quantity);
-        };
-        resolve_type_and_side_then_call(order.get(), reduce_func);
-    }
+    ADD_ORDERBOOK_OP_PROXY(reduce_order)
 
-    constexpr void reduce_order(Order& order, const Quantity quantity) noexcept {
-        (void)order;
-        (void)quantity;
-    }
+    ADD_ORDERBOOK_OP_PROXY(modify_order)
 
-    constexpr void modify_order(const OrderId id, const Quantity quantity, const Price price, const bool mitigate) noexcept {
-        // TODO extract the duplication between this and reduce_order, modify_order, remove_order, and replace_order
-        assert(quantity.value > 0 && "Quantity must be greater than zero");
-        auto [order, orderbook] = get_order_and_orderbook(id);
-        // This will do the reporting and the removal of the orders from the hash map if needed
-        auto modify_func = [&] <OrderType type, OrderSide side> {
-            orderbook.template modify_order<type, side>(order, quantity, price, mitigate);
-        };
-        resolve_type_and_side_then_call(order, modify_func);
+    ADD_ORDERBOOK_OP_PROXY(remove_order)
 
-        perform_post_order_processing(orderbook);
-    }
-
-    constexpr void remove_order(const OrderId id) noexcept {
-        // TODO extract the duplication between this and reduce_order, modify_order, remove_order, and replace_order
-        // This will do the reporting and the removal of the orders from the hash map
-        auto [order, orderbook] = get_order_and_orderbook(id);
-        auto remove_func = [&] <OrderType type, OrderSide side> {
-            orderbook.get().template remove_order<type, side>(order);
-        };
-        resolve_type_and_side_then_call(order, remove_func);
-    }
-
-    template <typename T>
-    constexpr void replace_order(const OrderId id, T&& new_order) {
-        // Replace atomically. Since the matching engine is single-threaded,
-        //  it can do it by performing remove then add, without worrying
-        //  about other operations happening between remove and add
-        // TODO have the event handler report replacement instead of removal and addition
-        // TODO extract the duplication between this and reduce_order, modify_order, remove_order, and replace_order
-        auto [order, orderbook] = get_order_and_orderbook(id);
-        // This will do the reporting and the removal and the addition of the orders from the hash map
-        auto replace_func = [&] <OrderType type, OrderSide side> {
-            orderbook.get().template replace_order<type, side>(order, std::forward<T>(new_order));
-        };
-        resolve_type_and_side_then_call(order, replace_func);
-    }
+    ADD_ORDERBOOK_OP_PROXY(replace_order)
 
     constexpr void execute_order(const OrderId id, const Quantity quantity, Price price) noexcept {
         return execute_order<false>(id, quantity, price);
@@ -328,7 +293,7 @@ private:
 
     template <typename Func>
     constexpr void resolve_type_and_side_then_call(Order& order, Func&& func) noexcept {
-        auto f1 = [&] <OrderSide side> {
+        auto f = [&] <OrderSide side> {
             switch (order.type()) {
                 case OrderType::MARKET: return func.template operator()<OrderType::MARKET, side>();
                 case OrderType::LIMIT: return func.template operator()<OrderType::LIMIT, side>();
@@ -345,9 +310,9 @@ private:
         };
 
         if (order.side() == OrderSide::BUY)
-            return f1.template operator()<OrderSide::BUY>();
+            return f.template operator()<OrderSide::BUY>();
 
-        return f1.template operator()<OrderSide::SELL>();
+        return f.template operator()<OrderSide::SELL>();
     }
 
     using OrderIterator = typename OrderBook::OrderIterator;
@@ -504,16 +469,22 @@ private:
     }
 
     template <OrderSide side>
-    constexpr auto& get_side(OrderBook& orderbook) noexcept {
+    static constexpr auto& get_side(OrderBook& orderbook) noexcept {
         return orderbook.template levels<LevelsType::PRICE, side>();
     }
 
     template <OrderSide side>
-    constexpr auto& get_opposite_side(OrderBook& orderbook) noexcept {
-        if constexpr (side == OrderSide::BUY)
-            return get_side<OrderSide::SELL>(orderbook);
-        else
-            return get_side<OrderSide::BUY>(orderbook);
+    static constexpr auto& get_opposite_side(OrderBook& orderbook) noexcept {
+        return get_side<opposite_side<side>()>(orderbook);
+    }
+
+    template <OrderSide side>
+    static constexpr auto opposite_side() noexcept {
+        if constexpr (side == OrderSide::BUY) {
+            return OrderSide::SELL;
+        } else {
+            return OrderSide::BUY;
+        }
     }
 
     template <OrderSide side>
@@ -534,20 +505,17 @@ private:
     }
 
     template <OrderType type, OrderSide side, concepts::Order T>
-    constexpr void try_add_limit_order(OrderBook& orderbook, T&& order) {
+    constexpr bool try_add_limit_order(OrderBook& orderbook, T&& order) {
         // No need for short-circuit behavior here because the checks are simple, and
         //  having short-circuit behavior would be compiled to multiple branches, making
         //  it harder for the branch predictor to do its job
         if (int(!order.is_fully_filled()) & int(!order.is_ioc()) & int(!order.is_fok())) {
-            constexpr auto level = [] {
-                // The order is important here because a trailing stop is a stop as well
-                if constexpr (type == OrderType::LIMIT) return LevelsType::PRICE;
-                else if constexpr (is_trailing(type)) return LevelsType::TRAILING_STOP;
-                return LevelsType::STOP;
-            }();
-            orderbook.template add_order<level, side>(std::forward<T>(order));
+            constexpr auto levels_type = order_type_to_levels_type<type>();
+            orderbook.template add_order<levels_type, side>(std::forward<T>(order));
+            return true;
         } else {
             event_handler().template on_limit_order_remove<side>(order);
+            return false;
         }
     }
 
@@ -619,13 +587,13 @@ private:
 
     template <OrderType type, OrderSide side>
     constexpr void activate_stop_order(OrderBook& orderbook, Order& order) noexcept {
-        order.mark_triggered();
+        order.template mark_triggered<type>();
         // TODO remove this and have a way to handle triggered stop orders accordingly
         if (order.time_in_force() != TimeInForce::FOK) {
             order.set_time_in_force(TimeInForce::IOC);
         }
 
-        event_handler().on_stop_order_trigger(order);
+        event_handler().on_stop_order_trigger<type, side>(order);
 
         match_market_order<side>(orderbook, order);
 
@@ -641,9 +609,9 @@ private:
         // Unlink the order from its stop order level and link it into a limit order level
         orderbook.template unlink_order<type, side>(order);
 
-        order.mark_triggered();
+        order.template mark_triggered<type>();
 
-        event_handler().on_stop_limit_order_trigger(order);
+        event_handler().on_stop_order_trigger<type, side>(order);
 
         add_limit_order<type, side>(orderbook, order);
     }
@@ -777,7 +745,7 @@ private:
                 // TODO remove this and include it in the reduce order
                 orderbook.template update_last_matching_price<side>(price);
 
-                reduce_order(*order_it, quantity);
+                reduce_order<LevelsType::PRICE, side>(orderbook, *order_it, quantity);
 
                 volume -= quantity;
 
@@ -839,11 +807,22 @@ private:
     }
 
     constexpr void perform_post_order_processing(OrderBook& orderbook) noexcept {
+        // TODO check where this is added redundently
         if (is_matching_enabled()) {
             match(orderbook);
         }
 
         orderbook.reset_matching_prices();
+    }
+
+    template <OrderSide side>
+    [[nodiscard]] constexpr bool should_trigger(OrderBook& orderbook, Order& order) const noexcept {
+        constexpr auto opposite = opposite_side<side>();
+        auto stop_trigger_price = orderbook.template get_market_price<opposite>();
+
+        if constexpr (side == OrderSide::BUY)
+            return stop_trigger_price >= order.stop_price();
+        return stop_trigger_price <= order.stop_price();
     }
 
     [[nodiscard]] constexpr auto& orderbook_at(SymbolId id) noexcept {
@@ -899,9 +878,56 @@ public:
 
     template <OrderType type, OrderSide side>
     constexpr bool try_trigger_stop_order(OrderBook& orderbook, Order& order) noexcept {
-        (void)orderbook;
-        (void)order;
-        return true;
+        if (should_trigger()) {
+            trigger_stop_order<type, side>(orderbook, order);
+            return true;
+        }
+        return false;
+    }
+
+    template <OrderType type, OrderSide side>
+    constexpr void trigger_stop_order(OrderBook& orderbook, Order& order) noexcept {
+        order.template mark_triggered<type>();
+
+        if constexpr (is_market(type)) {
+            if (order.time_in_force() != TimeInForce::FOK)
+                order.set_time_in_force(TimeInForce::IOC);
+        }
+
+        event_handler().template on_stop_order_trigger<type, side>(order);
+
+        if constexpr (is_market(type)) {
+            match_market_order<side>(orderbook, order);
+            event_handler().on_delete_order(order);
+        } else if constexpr (is_limit(type)) {
+            match_limit_order<side>(orderbook, order);
+            try_add_limit_order<type, side>(orderbook, order);
+        } else {
+            assert(false && "Unsupported order type");
+        }
+
+        perform_post_order_processing(orderbook);
+    }
+
+    template <OrderType type, OrderSide side, concepts::Order T>
+    constexpr void insert_stop_order(OrderBook& orderbook, T&& order) noexcept {
+        // TODO this conditional is useless (always true), remove it?
+        if (!order.is_fully_filled()) {
+            if constexpr (is_trailing(type)) {
+                orderbook.template add_order<LevelsType::TRAILING_STOP, side>(std::forward<T>(order));
+            } else {
+                orderbook.template add_order<LevelsType::STOP, side>(std::forward<T>(order));
+            }
+        } else {
+            event_handler().template on_stop_order_remove<type, side>(order);
+        }
+    }
+
+    template <OrderType type>
+    static constexpr LevelsType order_type_to_levels_type() noexcept {
+        if constexpr (type == OrderType::LIMIT) return LevelsType::PRICE;
+        else if constexpr (is_trailing(type)) return LevelsType::TRAILING_STOP;
+        return LevelsType::STOP;
     }
 
     constexpr bool try_trigger_stop_orders(OrderBook& orderbook) noexcept {
@@ -918,8 +944,7 @@ public:
 
     template <OrderSide side>
     constexpr void match_limit_order(OrderBook& orderbook, Order& order) noexcept {
-        (void)orderbook;
-        (void)order;
+        match_order<side>(orderbook, order);
     }
 };
 
