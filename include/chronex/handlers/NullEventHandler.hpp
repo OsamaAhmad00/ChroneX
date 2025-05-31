@@ -34,13 +34,15 @@ public:
     template <OrderType type, OrderSide side, typename T>
     void on_stop_limit_order_add(T&) noexcept { };
     template <OrderType type, OrderSide side, typename T>
-    void on_stop_limit_order_trigger(T&) noexcept { };
+    void on_stop_order_trigger(T&) noexcept { };
     template <OrderType type, OrderSide side, typename T>
     void on_stop_limit_order_remove(T&) noexcept { };
     template <typename T>
     void on_add_new_orderbook(T&) noexcept { };
     template <typename T>
     void on_add_orderbook(T&) noexcept { };
+    template <typename T>
+    void on_remove_orderbook(T&) noexcept { };
 };
 
 }

@@ -89,6 +89,20 @@ public:
     template <typename Self>
     [[nodiscard]] constexpr auto rend(this Self&& self) noexcept { return self.map().rend();  }
 
+    constexpr void clear() noexcept { map().clear(); }
+
+    Levels() = default;
+
+    Levels(const Levels&) = delete;
+
+    Levels& operator=(const Levels&) = delete;
+
+    Levels(Levels&&) = default;
+
+    Levels& operator=(Levels&&) = default;
+
+    ~Levels() = default;
+
 private:
 
     template <typename Self>

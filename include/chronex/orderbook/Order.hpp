@@ -86,13 +86,22 @@ struct Order {
     [[nodiscard]] constexpr TrailingOffset trailing_distance() const noexcept { return _trailing_distance; }
     [[nodiscard]] constexpr TrailingOffset trailing_step() const noexcept { return _trailing_step; }
 
-    [[nodiscard]] constexpr bool is_valid() const noexcept { return _id != OrderId::invalid(); }
+    [[nodiscard]] constexpr bool is_valid() const noexcept;
 
     constexpr void set_price(const Price& price) noexcept { _price = price; }
     constexpr void set_stop_price(const Price& price) noexcept { _stop_price = price; }
 
-    constexpr void mark_triggered() noexcept { _type = (OrderType) ((int)_type | (int)OrderTypeBits::Triggered ); }
-    constexpr void set_stop_and_trailing_stop_prices(const Price) { }
+    // When triggering, we know the exact type. No need to check our own type again.
+    template <OrderType type>
+    constexpr void mark_triggered() noexcept { _type = get_triggered<type>(); }
+
+    constexpr void set_stop_and_trailing_stop_prices(const Price trailing_stop_price) noexcept {
+        const auto diff = price() - trailing_stop_price;
+        _stop_price = trailing_stop_price;
+        _price = trailing_stop_price + diff;
+    }
+
+    constexpr void set_time_in_force(TimeInForce time_in_force) noexcept { _time_in_force = time_in_force; }
 
     template <OrderSide side>
     constexpr void add_slippage() noexcept { }

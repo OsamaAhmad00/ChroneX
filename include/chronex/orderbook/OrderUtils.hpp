@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <cstdint>
 #include <compare>
 #include <functional>
@@ -11,10 +12,10 @@ struct Price {
     uint64_t value;
     explicit constexpr Price(const uint64_t _value) noexcept : value(_value) { }
     constexpr auto operator<=>(const Price &) const noexcept = default;
-    Price& operator+=(const Price &other) noexcept { value += other.value; return *this; }
-    Price& operator-=(const Price &other) noexcept { value -= other.value; return *this; }
-    Price operator+(const Price &other) const noexcept { return Price{ value + other.value }; }
-    Price operator-(const Price &other) const noexcept { return Price{ value - other.value }; }
+    constexpr Price& operator+=(const Price &other) noexcept { value += other.value; return *this; }
+    constexpr Price& operator-=(const Price &other) noexcept { value -= other.value; return *this; }
+    constexpr Price operator+(const Price &other) const noexcept { return Price{ value + other.value }; }
+    constexpr Price operator-(const Price &other) const noexcept { return Price{ value - other.value }; }
 
     constexpr static Price invalid() noexcept { return Price { std::numeric_limits<decltype(value)>::max() }; }
 };
@@ -38,16 +39,18 @@ struct Quantity {
     uint64_t value;
     explicit constexpr Quantity(const uint64_t _value) noexcept : value(_value) { }
     constexpr auto operator<=>(const Quantity &) const noexcept = default;
-    Quantity& operator+=(const Quantity &other) noexcept { value += other.value; return *this; }
-    Quantity& operator-=(const Quantity &other) noexcept { value -= other.value; return *this; }
-    Quantity operator+(const Quantity &other) const noexcept { return Quantity{ value + other.value }; }
-    Quantity operator-(const Quantity &other) const noexcept { return Quantity{ value - other.value }; }
+    constexpr Quantity& operator+=(const Quantity &other) noexcept { value += other.value; return *this; }
+    constexpr Quantity& operator-=(const Quantity &other) noexcept { value -= other.value; return *this; }
+    constexpr Quantity operator+(const Quantity &other) const noexcept { return Quantity{ value + other.value }; }
+    constexpr Quantity operator-(const Quantity &other) const noexcept { return Quantity{ value - other.value }; }
 
     constexpr static Quantity max() noexcept { return Quantity { std::numeric_limits<decltype(value)>::max() - 1 }; }
     constexpr static Quantity invalid() noexcept { return Quantity { std::numeric_limits<decltype(value)>::max() }; }
 };
 
 struct TrailingOffset {
+
+    using ValueType = int64_t;
 
     /*
         When positive: Absolute distance from the market
@@ -93,13 +96,25 @@ struct TrailingOffset {
         return trailing_limit<std::minus<>>(price);
     }
 
+    constexpr auto operator<=>(const TrailingOffset& other) const noexcept {
+        // When comparing different types (one absolute, one percentage),
+        // we need a reference price to make a meaningful comparison.
+        // Without a reference price, we can't directly compare them.
+
+        // If both are the same type (both absolute or both percentage), direct comparison works
+        assert((is_absolute() && other.is_absolute()) ||
+            (is_percentage() && other.is_percentage()) && "Can't compare different types of trailing offsets");
+
+        return value <=> other.value;
+    }
+
     constexpr static TrailingOffset invalid() noexcept { return TrailingOffset { 0 }; }
+
+    ValueType value;
 
 private:
 
     constexpr explicit TrailingOffset(const int64_t raw) noexcept : value(raw) { }
-
-    int64_t value;
 };
 
 enum class OrderType : uint8_t;
@@ -149,6 +164,17 @@ constexpr bool is_stop(const OrderType type) noexcept {
     return ((static_cast<uint8_t>(type) & OrderTypeBits::Stop) ||
             (static_cast<uint8_t>(type) & OrderTypeBits::StopLimit)) &&
             !is_triggered(type);
+}
+
+template <OrderType type>
+[[nodiscard]] constexpr OrderType get_triggered() noexcept {
+    OrderType result = type;
+    if constexpr (type == OrderType::STOP || type == OrderType::TRAILING_STOP) {
+        result = static_cast<OrderType>(static_cast<uint8_t>(type) | OrderTypeBits::Market);
+    } else {
+        result = static_cast<OrderType>(static_cast<uint8_t>(type) | OrderTypeBits::Limit);
+    }
+    return static_cast<OrderType>(static_cast<uint8_t>(result) | OrderTypeBits::Triggered);
 }
 
 enum class OrderSide : uint8_t {
