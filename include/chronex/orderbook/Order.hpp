@@ -86,7 +86,7 @@ struct Order {
     [[nodiscard]] constexpr TrailingOffset trailing_distance() const noexcept { return _trailing_distance; }
     [[nodiscard]] constexpr TrailingOffset trailing_step() const noexcept { return _trailing_step; }
 
-    [[nodiscard]] constexpr bool is_valid() const noexcept;
+    [[nodiscard]] bool is_valid() const noexcept;
 
     constexpr void set_price(const Price& price) noexcept { _price = price; }
     constexpr void set_stop_price(const Price& price) noexcept { _stop_price = price; }
@@ -102,6 +102,16 @@ struct Order {
     }
 
     constexpr void set_time_in_force(TimeInForce time_in_force) noexcept { _time_in_force = time_in_force; }
+
+    constexpr void reduce_quantity(const Quantity quantity) noexcept {
+        assert(quantity <= _leaves_quantity && "Trying to reduce more quantity than the order has left");
+        _leaves_quantity -= quantity;
+    }
+
+    constexpr void execute_quantity(const Quantity quantity) noexcept {
+        reduce_quantity(quantity);
+        _filled_quantity += quantity;
+    }
 
     template <OrderSide side>
     constexpr void add_slippage() noexcept { }

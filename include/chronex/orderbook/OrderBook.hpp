@@ -34,7 +34,8 @@ public:
     using OrderIterator = typename PriceLevels<Order>::OrderIterator;
 
     constexpr OrderBook(HashMap<OrderId, OrderIterator>* orders, const Symbol symbol, EventHandler* event_handler) noexcept
-        : _orders(orders), _symbol(symbol), _event_handler(event_handler) { }
+        : _price_levels(event_handler), _stop_levels(event_handler), _trailing_stop_levels(event_handler),
+          _orders(orders), _symbol(symbol), _event_handler(event_handler) { }
 
     constexpr OrderBook() : OrderBook(nullptr, Symbol::invalid() , nullptr) { };
 
@@ -44,6 +45,7 @@ public:
 
     template <LevelsType type, typename Self>
     [[nodiscard]] constexpr auto& levels(this Self&& self) noexcept {
+        // TODO are we returning the right stop and trailing stop side?
         if constexpr (type == LevelsType::PRICE) {
             return self._price_levels;
         } else if constexpr (type == LevelsType::STOP) {
@@ -179,9 +181,9 @@ private:
         return *_event_handler;
     }
 
-    PriceLevels       <Order> _price_levels         { };
-    StopLevels        <Order> _stop_levels          { };
-    TrailingStopLevels<Order> _trailing_stop_levels { };
+    PriceLevels       <Order> _price_levels;
+    StopLevels        <Order> _stop_levels;
+    TrailingStopLevels<Order> _trailing_stop_levels;
 
     HashMap<OrderId, OrderIterator>* _orders { };
 
@@ -204,10 +206,24 @@ public:
     }
 
     template <OrderType type, OrderSide side>
-    constexpr void execute_quantity(Order& order, Quantity quantity, Price price) noexcept {
-        (void)order;
-        (void)quantity;
-        (void)price;
+    constexpr void execute_quantity(Order& order, const Quantity quantity, const Price price) noexcept {
+
+        event_handler().template on_execute_order<type, side>(order, quantity);
+
+        update_last_matching_price<side>(price);
+
+        // TODO is this levels type correct?
+        reduce_order<LevelsType::PRICE, side>(order, quantity);
+
+        // TODO Add this to reduce order
+        // Update the order or delete the empty order
+        if (order.is_fully_filled()) {
+            event_handler().template on_remove_order<type, side>(order);
+            // TODO is this levels type correct?
+            remove_order<LevelsType::PRICE, side>(order);
+        } else {
+            event_handler().template on_execute_order<type, side>(order, quantity);
+        }
     }
 
     constexpr void execute_quantity(Order& order, Quantity quantity) noexcept {
@@ -240,6 +256,7 @@ public:
     template <LevelsType type, OrderSide side>
     constexpr void remove_order(Order& order) noexcept {
         (void)order;
+        // Remove from the map as well
     }
 
     template <LevelsType type, OrderSide side, concepts::Order T>

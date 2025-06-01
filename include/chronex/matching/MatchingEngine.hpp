@@ -135,12 +135,12 @@ public:
     constexpr void add_market_order(T&& order) {
         auto& orderbook = orderbook_at(order.symbol_id());
 
-        event_handler().on_market_order_add(order);
+        event_handler().template on_add_order<OrderType::MARKET, side>(order);
 
         if (is_matching_enabled())
             match_market_order<side>(orderbook, order);
 
-        event_handler().on_market_order_remove(order);
+        event_handler().template on_remove_order<OrderType::MARKET, side>(order);
 
         perform_post_order_processing(orderbook);
     }
@@ -149,7 +149,7 @@ public:
     constexpr void add_limit_order(T&& order) {
         auto& orderbook = orderbook_at(order.symbol_id());
 
-        event_handler().template on_limit_order_add<side>(order);
+        event_handler().template on_add_order<OrderType::LIMIT, side>(order);
 
         // Since this is a single-threaded engine, order additions will take place only
         //  after no current possible matches. This means that we don't need to respect
@@ -174,7 +174,7 @@ public:
             order.set_stop_price(orderbook.template calculate_trailing_stop_price<side>(order));
         }
 
-        event_handler().template on_stop_order_add<type, side>(order);
+        event_handler().template on_add_order<type, side>(order);
 
         if (int(is_matching_enabled()) & int(should_trigger<side>(orderbook, order))) {
             return trigger_stop_order<type, side>(orderbook, order);
@@ -196,7 +196,7 @@ public:
             order.set_stop_and_trailing_stop_prices(trailing_stop_price);
         }
 
-        event_handler().template on_stop_limit_order_add<type, side>(order);
+        event_handler().template on_add_order<type, side>(order);
 
         if (int(is_matching_enabled()) & int(should_trigger<side>(orderbook, order))) {
             return trigger_stop_order<type, side>(orderbook, order);
@@ -225,7 +225,6 @@ public:
                                                                                                                 \
     template <LevelsType type, OrderSide side, typename... Args>                                                \
     constexpr void OP_NAME(OrderBook& orderbook, Order& order, Args&&... args) noexcept {                       \
-        assert(quantity.value > 0 && "Quantity must be greater than zero");                                     \
         /* This will do the reporting and the removal of the orders from the hash map if needed */              \
         orderbook.template OP_NAME<type, side>(order, std::forward<Args>(args)...);                             \
     }                                                                                                           \
@@ -270,12 +269,6 @@ private:
 
         auto func = [&] <OrderType type, OrderSide side> {
             quantity = std::min(quantity, order.leaves_quantity());
-
-            event_handler().on_order_execute(order, quantity);
-
-            // TODO add it to orderbook.execute_quantity()
-            orderbook.template update_last_matching_price<side>(price);
-
             orderbook.template execute_quantity<type, side>(order, quantity, price);
         };
 
@@ -382,7 +375,7 @@ private:
         // TODO should the price be of an arbitrary side?
         Price price = executing_order->price();
 
-        event_handler().on_order_match(*executing_order, *reducing_order);
+        event_handler().template on_match_order<executing_side>(*executing_order, *reducing_order);
 
         // TODO include them in orderbook
         orderbook.template update_last_matching_price<executing_side>(price);
@@ -448,15 +441,16 @@ private:
 
             // auto price = executing->price();  // TODO or order->price()?
 
-            Quantity quantity = Quantity::invalid();
-            if (order_has_less_quantity) {
-                // `order` is the actual executing order
-                event_handler().template on_order_match<order_side>(*order, *executing);
-                quantity = order->leaves_quantity();
-            } else {
-                event_handler().template on_order_match<opposite_side>(*executing, *order);
-                quantity = executing->leaves_quantity();
-            }
+            Quantity quantity = [&] {
+                if (order_has_less_quantity) {
+                    // `order` is the actual executing order
+                    event_handler().template on_match_order<order_side>(*order, *executing);
+                    return order->leaves_quantity();
+                }
+
+                event_handler().template on_match_order<opposite_side>(*executing, *order);
+                return executing->leaves_quantity();
+            }();
 
             orderbook.execute_quantity(*order       , quantity);
             orderbook.execute_quantity(*executing_it, quantity);
@@ -514,7 +508,7 @@ private:
             orderbook.template add_order<levels_type, side>(std::forward<T>(order));
             return true;
         } else {
-            event_handler().template on_limit_order_remove<side>(order);
+            event_handler().template on_remove_order<OrderType::LIMIT, side>(order);
             return false;
         }
     }
@@ -737,10 +731,11 @@ private:
 
             while (order_it != level.end()) {
                 auto quantity = volume;
-                if (int(order_it->is_aon()) | int(order_it->leaves_quantity() < volume))
+                if (int(order_it->is_aon()) | int(order_it->leaves_quantity() < volume)) {
                     quantity = order_it->leaves_quantity();
+                }
 
-                event_handler().on_execute_order(*order_it, price, quantity);
+                event_handler().template on_execute_order<side>(*order_it, price, quantity);
 
                 // TODO remove this and include it in the reduce order
                 orderbook.template update_last_matching_price<side>(price);
@@ -919,7 +914,7 @@ public:
                 orderbook.template add_order<LevelsType::STOP, side>(std::forward<T>(order));
             }
         } else {
-            event_handler().template on_stop_order_remove<type, side>(order);
+            event_handler().template on_remove_order<type, side>(order);
         }
     }
 
