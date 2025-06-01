@@ -11,10 +11,13 @@ template <
 struct PriceLevels {
 public:
 
+    // TODO remove this
+    using LevelQueueDataType = typename DescendingLevels<OrderType, EventHandler>::LevelQueueDataType;
+
     explicit PriceLevels(EventHandler* event_handler) : _bids(event_handler), _asks(event_handler) { }
 
     // Or DescendingLevels. It doesn't matter.
-    using OrderIterator = typename AscendingLevels<OrderType>::OrderIterator;
+    using OrderIterator = typename AscendingLevels<OrderType, EventHandler>::OrderIterator;
 
     template <typename Self>
     constexpr auto& bids(this Self&& self) noexcept { return self._bids; }
@@ -38,8 +41,8 @@ public:
 
 private:
 
-    DescendingLevels<OrderType> _bids;
-    AscendingLevels <OrderType> _asks;
+    DescendingLevels<OrderType, EventHandler> _bids;
+    AscendingLevels <OrderType, EventHandler> _asks;
 };
 
 };

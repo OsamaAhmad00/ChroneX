@@ -11,16 +11,19 @@
 namespace chronex {
 
 template <
-    concepts::Order OrderType,
+    concepts::Order Order,
     concepts::UniTypeComparator<Price> Comp,
-    concepts::EventHandler<OrderType> EventHandler = handlers::NullEventHandler
+    concepts::EventHandler<Order> EventHandler = handlers::NullEventHandler
 >
 class Levels {
 
-    using LevelType = Level<OrderType, EventHandler>;
+    using LevelType = Level<Order, EventHandler>;
     using ContainerType = std::map<Price, LevelType, Comp>;
 
 public:
+
+    // TODO remove this
+    using LevelQueueDataType = typename LevelType::LevelQueueDataType;
 
     using OrderIterator = typename LevelType::iterator;
 
@@ -38,6 +41,11 @@ public:
         return map().emplace(price, &event_handler());
     }
 
+    template <typename Iter>
+    constexpr auto remove_level(Iter level_it) {
+        return map().erase(level_it);
+    }
+
     template <typename T, typename Iter>
     constexpr auto add_order(T&& order, Iter level_it) {
         assert(level_it != this->end() && "Trying to add an order to a non-existing level");
@@ -47,38 +55,35 @@ public:
         return level_it->second.add_order(std::forward<T>(order));
     }
 
-    template <typename T>
+    template <OrderType type, OrderSide side, typename T>
     constexpr auto add_order(T&& order) {
-        return add_order(std::forward<T>(order), this->find(order.price()));
+        return add_order<type, side>(std::forward<T>(order), this->find(order.price()));
     }
 
-    template <typename T, typename Iter>
-    constexpr auto reduce_order(T&& order, Iter level_it) {
+    template <OrderType type, OrderSide side, typename Iter>
+    constexpr auto reduce_order(OrderIterator order_it, Iter level_it) {
         assert(level_it != this->end() && "Trying to reduce an order from a non-existing level");
-
-        ++_orders_count;
-
-        return level_it->second.reduce_order(std::forward<T>(order));
+        return level_it->second.template reduce_order<type, side>(order_it);
     }
 
-    template <typename T>
+    template <OrderType type, OrderSide side, typename T>
     constexpr auto reduce_order(T&& order) {
-        return reduce_order(std::forward<T>(order), this->find(order.price()));
+        return reduce_order<type, side>(std::forward<T>(order), this->find(order.price()));
     }
-    template <typename Iter>
+
+    template <OrderType type, OrderSide side, typename Iter>
     constexpr auto remove_order(OrderIterator order_it, Iter level_it) {
         // assert(orders_count > 0 && "Trying to remove order from empty level");
         assert(level_it != this->end() && "Trying to remove order from a non-existing level");
 
         --_orders_count;
 
-        // Is removing levels with total_quantity == 0 an optimization or pessimization?
-        // TODO benchmark removing levels with total_quantity == 0
-        return level_it.remove_order(order_it);
+        return level_it->second.template remove_order<type, side>(order_it);
     }
 
+    template <OrderType type, OrderSide side>
     constexpr auto remove_order(OrderIterator order_it) {
-        return remove_order(order_it, this->find(order_it->price()));
+        return remove_order<type, side>(order_it, this->find(order_it->price()));
     }
 
     [[nodiscard]] constexpr size_t orders_count() const noexcept { return _orders_count; }
@@ -137,7 +142,14 @@ private:
     EventHandler* _event_handler = nullptr;
 };
 
-template <concepts::Order OrderType> using AscendingLevels  = Levels<OrderType, std::less<>>;
-template <concepts::Order OrderType> using DescendingLevels = Levels<OrderType, std::greater<>>;
+template <
+    concepts::Order Order,
+    concepts::EventHandler<Order> EventHandler
+> using AscendingLevels  = Levels<Order, std::less<>>;
+
+template <
+    concepts::Order Order,
+    concepts::EventHandler<Order> EventHandler
+> using DescendingLevels = Levels<Order, std::greater<>>;
 
 }

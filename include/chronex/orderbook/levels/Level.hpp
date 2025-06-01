@@ -7,14 +7,17 @@
 namespace chronex {
 
 template <
-    concepts::Order OrderType,
-    concepts::EventHandler<OrderType> EventHandler = handlers::NullEventHandler,
-    typename ListType = ds::LinkedList<OrderType>
+    concepts::Order Order = Order,
+    concepts::EventHandler<Order> EventHandler = handlers::NullEventHandler,
+    typename ListType = ds::LinkedList<Order>
 >
 class Level {
 public:
 
-    using value_type = OrderType;
+    // TODO remove this
+    using LevelQueueDataType = ListType;
+
+    using value_type = Order;
     using iterator = typename ListType::iterator;
     using const_iterator = typename ListType::const_iterator;
     using reverse_iterator = typename ListType::reverse_iterator;
@@ -22,23 +25,35 @@ public:
 
     template <concepts::Order T>
     constexpr auto add_order(T&& order) {
-        _leaves_quantity += order.leaves_quantity();
-        _max_visible_quantity += order.visible_quantity();
+        _visible_volume += order.visible_quantity();
+        _hidden_volume += order.hidden_quantity();
         return orders.emplace_back(std::forward<T>(order));
     }
 
-    constexpr auto reduce_order(iterator it, Quantity quantity) {
-        assert(_leaves_quantity <= it->leaves_quantity() && "Trying to reduce more quantity than the level has left");
+    template <OrderType type, OrderSide side>
+    constexpr auto execute_quantity(iterator it, Quantity quantity) {
+        assert(total_volume() <= it->leaves_quantity() && "Trying to execute more quantity than the level has left");
+
         if (quantity == it->leaves_quantity()) {
-            return remove_order(it);
+            return remove_order<type, side>(it);
         }
-        _leaves_quantity -= quantity;
-        it->reduce_quantity(quantity);
+
+        auto old_visible = it->visible_quantity();
+        auto old_hidden = it->hidden_quantity();
+
+        it->execute_quantity(quantity);
+
+        _visible_volume -= (old_visible - it->visible_quantity());
+        _hidden_volume -= (old_hidden - it->hidden_quantity());
+
+        event_handler().template on_execute_order<type, side>(*it, quantity);
     }
 
+    template <OrderType type, OrderSide side>
     constexpr auto remove_order(iterator it) noexcept {
-        _leaves_quantity -= it->leaves_quantity();
-        _max_visible_quantity -= it->visible_quantity();
+        _visible_volume -= it->visible_quantity();
+        _hidden_volume -= it->hidden_quantity();
+        event_handler().template on_remove_order<type, side>(*it);
         orders.erase(it);
     }
 
@@ -55,10 +70,9 @@ public:
     [[nodiscard]] constexpr size_t size() const noexcept { return orders.size(); }
     [[nodiscard]] constexpr bool is_empty() const noexcept { return size() == 0; }
 
-    [[nodiscard]] constexpr Quantity leaves_quantity() const noexcept { return _leaves_quantity; }
-    [[nodiscard]] constexpr Quantity max_visible_quantity() const noexcept { return _max_visible_quantity; }
-    [[nodiscard]] constexpr Quantity visible_quantity() const noexcept { return std::min(leaves_quantity(), max_visible_quantity()); }
-    [[nodiscard]] constexpr Quantity hidden_quantity() const noexcept { return std::max(Quantity { 0 }, leaves_quantity() - max_visible_quantity()); }
+    [[nodiscard]] constexpr Quantity visible_volume() const noexcept { return _visible_volume; }
+    [[nodiscard]] constexpr Quantity hidden_volume() const noexcept { return _hidden_volume; }
+    [[nodiscard]] constexpr Quantity total_volume() const noexcept { return visible_volume() + hidden_volume(); }
 
     [[nodiscard]] constexpr iterator begin() noexcept { return orders.begin(); }
     [[nodiscard]] constexpr iterator end() noexcept { return orders.end(); }
@@ -68,6 +82,8 @@ public:
     [[nodiscard]] constexpr reverse_iterator rend() noexcept { return orders.rend(); }
     [[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return orders.rbegin(); }
     [[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return orders.rend(); }
+
+    [[nodiscard]] constexpr EventHandler& event_handler() noexcept { return *_event_handler; }
 
     explicit Level(EventHandler* event_handler) : _event_handler(event_handler) { }
 
@@ -86,9 +102,8 @@ private:
     // TODO: experiment with other types including different lists and arrays as well
     ListType orders { };
 
-    Quantity _leaves_quantity = Quantity { 0 };
-    Quantity _filled_quantity = Quantity { 0 };
-    Quantity _max_visible_quantity = Quantity { 0 };
+    Quantity _visible_volume = Quantity { 0 };
+    Quantity _hidden_volume = Quantity { 0 };
 
     EventHandler* _event_handler = nullptr;
 };

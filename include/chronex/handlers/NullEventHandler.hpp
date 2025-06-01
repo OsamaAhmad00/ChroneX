@@ -17,6 +17,12 @@ public:
     template <typename T>
     void on_remove_orderbook(T&) noexcept { };
 
+    // Levels
+    template <OrderType type, OrderSide side, typename T, typename U>
+    void on_add_level(T&, U&) noexcept { };
+    template <OrderType type, OrderSide side, typename T, typename U>
+    void on_remove_level(T&, U&) noexcept { };
+
     // Orders
     template <OrderType, OrderSide, typename T>
     void on_create_order(T&) const noexcept { }
