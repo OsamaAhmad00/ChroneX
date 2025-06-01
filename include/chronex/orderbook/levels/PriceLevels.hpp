@@ -4,9 +4,14 @@
 
 namespace chronex {
 
-template <concepts::Order OrderType>
+template <
+    concepts::Order OrderType,
+    concepts::EventHandler<OrderType> EventHandler = handlers::NullEventHandler
+>
 struct PriceLevels {
 public:
+
+    explicit PriceLevels(EventHandler* event_handler) : _bids(event_handler), _asks(event_handler) { }
 
     // Or DescendingLevels. It doesn't matter.
     using OrderIterator = typename AscendingLevels<OrderType>::OrderIterator;

@@ -10,10 +10,14 @@
 
 namespace chronex {
 
-template <concepts::Order OrderType, concepts::UniTypeComparator<Price> Comp>
+template <
+    concepts::Order OrderType,
+    concepts::UniTypeComparator<Price> Comp,
+    concepts::EventHandler<OrderType> EventHandler = handlers::NullEventHandler
+>
 class Levels {
 
-    using LevelType = Level<OrderType>;
+    using LevelType = Level<OrderType, EventHandler>;
     using ContainerType = std::map<Price, LevelType, Comp>;
 
 public:
@@ -31,12 +35,12 @@ public:
     constexpr auto best(this Self&& self) noexcept { return self.map().begin(); }
 
     constexpr auto add_level(const Price price) {
-        return map().emplace(price, LevelType { });
+        return map().emplace(price, &event_handler());
     }
 
     template <typename T, typename Iter>
     constexpr auto add_order(T&& order, Iter level_it) {
-        assert(level_it != this->end() && "Trying to remove order from non-existing level");
+        assert(level_it != this->end() && "Trying to add an order to a non-existing level");
 
         ++_orders_count;
 
@@ -48,16 +52,29 @@ public:
         return add_order(std::forward<T>(order), this->find(order.price()));
     }
 
+    template <typename T, typename Iter>
+    constexpr auto reduce_order(T&& order, Iter level_it) {
+        assert(level_it != this->end() && "Trying to reduce an order from a non-existing level");
+
+        ++_orders_count;
+
+        return level_it->second.reduce_order(std::forward<T>(order));
+    }
+
+    template <typename T>
+    constexpr auto reduce_order(T&& order) {
+        return reduce_order(std::forward<T>(order), this->find(order.price()));
+    }
     template <typename Iter>
     constexpr auto remove_order(OrderIterator order_it, Iter level_it) {
         // assert(orders_count > 0 && "Trying to remove order from empty level");
-        assert(level_it != this->end() && "Trying to remove order from non-existing level");
+        assert(level_it != this->end() && "Trying to remove order from a non-existing level");
 
         --_orders_count;
 
         // Is removing levels with total_quantity == 0 an optimization or pessimization?
         // TODO benchmark removing levels with total_quantity == 0
-        return *level_it.remove_order(order_it);
+        return level_it.remove_order(order_it);
     }
 
     constexpr auto remove_order(OrderIterator order_it) {
@@ -91,7 +108,10 @@ public:
 
     constexpr void clear() noexcept { map().clear(); }
 
-    Levels() = default;
+    template <typename Self>
+    [[nodiscard]] constexpr EventHandler& event_handler(this Self&& self) noexcept { return *self._event_handler; }
+
+    explicit Levels(EventHandler* event_handler) : _event_handler(event_handler) { }
 
     Levels(const Levels&) = delete;
 
@@ -113,6 +133,8 @@ private:
     ContainerType _map;
 
     size_t _orders_count { 0 };
+
+    EventHandler* _event_handler = nullptr;
 };
 
 template <concepts::Order OrderType> using AscendingLevels  = Levels<OrderType, std::less<>>;

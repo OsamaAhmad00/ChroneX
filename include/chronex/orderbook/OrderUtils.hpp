@@ -108,6 +108,8 @@ struct TrailingOffset {
         return value <=> other.value;
     }
 
+    constexpr bool operator==(const TrailingOffset& invalid) const = default;
+
     constexpr static TrailingOffset invalid() noexcept { return TrailingOffset { 0 }; }
 
     ValueType value;

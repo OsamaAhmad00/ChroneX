@@ -4,7 +4,7 @@
 
 namespace chronex {
 
-constexpr bool Order::is_valid() const noexcept {
+bool Order::is_valid() const noexcept {
 
     assert(id() != OrderId::invalid() && "Order id must be valid!");
     assert(symbol_id() != SymbolId::invalid() && "Order symbol id must be valid!");
@@ -17,7 +17,7 @@ constexpr bool Order::is_valid() const noexcept {
     assert(slippage() != Price::invalid() && "Order slippage must be valid!");
     assert(trailing_distance() != TrailingOffset::invalid() && "Order trailing distance must be valid!");
     assert(trailing_step() != TrailingOffset::invalid() && "Order trailing step must be valid!");
-    assert(total_quantity() == leaves_quantity() + filled_quantity() && "Order total quantity must be equal to leaves quantity plus filled quantity!");
+    assert(initial_quantity() == leaves_quantity() + filled_quantity() && "Order total quantity must be equal to leaves quantity plus filled quantity!");
     assert(leaves_quantity() > Quantity { 0 } && "Order leaves quantity must be greater than zero!");
 
     if (is_market_order()) {

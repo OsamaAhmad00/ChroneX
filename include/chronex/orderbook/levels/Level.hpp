@@ -6,7 +6,11 @@
 
 namespace chronex {
 
-template <typename OrderType, typename ListType = ds::LinkedList<OrderType>>
+template <
+    concepts::Order OrderType,
+    concepts::EventHandler<OrderType> EventHandler = handlers::NullEventHandler,
+    typename ListType = ds::LinkedList<OrderType>
+>
 class Level {
 public:
 
@@ -18,15 +22,22 @@ public:
 
     template <concepts::Order T>
     constexpr auto add_order(T&& order) {
-        _leaves_quantity -= order.leaves_quantity();
-        _filled_quantity -= order.filled_quantity();
-        _max_visible_quantity -= order.visible_quantity();
+        _leaves_quantity += order.leaves_quantity();
+        _max_visible_quantity += order.visible_quantity();
         return orders.emplace_back(std::forward<T>(order));
     }
 
-    constexpr void remove_order(iterator it) noexcept {
+    constexpr auto reduce_order(iterator it, Quantity quantity) {
+        assert(_leaves_quantity <= it->leaves_quantity() && "Trying to reduce more quantity than the level has left");
+        if (quantity == it->leaves_quantity()) {
+            return remove_order(it);
+        }
+        _leaves_quantity -= quantity;
+        it->reduce_quantity(quantity);
+    }
+
+    constexpr auto remove_order(iterator it) noexcept {
         _leaves_quantity -= it->leaves_quantity();
-        _filled_quantity -= it->filled_quantity();
         _max_visible_quantity -= it->visible_quantity();
         orders.erase(it);
     }
@@ -45,7 +56,6 @@ public:
     [[nodiscard]] constexpr bool is_empty() const noexcept { return size() == 0; }
 
     [[nodiscard]] constexpr Quantity leaves_quantity() const noexcept { return _leaves_quantity; }
-    [[nodiscard]] constexpr Quantity filled_quantity() const noexcept { return _filled_quantity; }
     [[nodiscard]] constexpr Quantity max_visible_quantity() const noexcept { return _max_visible_quantity; }
     [[nodiscard]] constexpr Quantity visible_quantity() const noexcept { return std::min(leaves_quantity(), max_visible_quantity()); }
     [[nodiscard]] constexpr Quantity hidden_quantity() const noexcept { return std::max(Quantity { 0 }, leaves_quantity() - max_visible_quantity()); }
@@ -59,7 +69,7 @@ public:
     [[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return orders.rbegin(); }
     [[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return orders.rend(); }
 
-    Level() = default;
+    explicit Level(EventHandler* event_handler) : _event_handler(event_handler) { }
 
     Level(const Level&) = delete;
 
@@ -79,6 +89,8 @@ private:
     Quantity _leaves_quantity = Quantity { 0 };
     Quantity _filled_quantity = Quantity { 0 };
     Quantity _max_visible_quantity = Quantity { 0 };
+
+    EventHandler* _event_handler = nullptr;
 };
 
 }
