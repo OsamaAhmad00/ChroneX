@@ -74,7 +74,8 @@ struct Order {
     [[nodiscard]] constexpr Quantity hidden_quantity() const noexcept { return std::max(Quantity { 0 }, leaves_quantity() - max_visible_quantity()); }
 
     [[nodiscard]] constexpr bool is_hidden() const noexcept { return max_visible_quantity() == Quantity { 0 }; }
-    [[nodiscard]] constexpr bool is_iceberg() const noexcept { return max_visible_quantity() <= Quantity::max(); }
+    // TODO make sure of this
+    [[nodiscard]] constexpr bool is_iceberg() const noexcept { return max_visible_quantity() < leaves_quantity(); }
 
     [[nodiscard]] constexpr Price price() const noexcept { return _price; }
     [[nodiscard]] constexpr Price stop_price() const noexcept { return _stop_price; }

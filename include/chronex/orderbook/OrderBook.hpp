@@ -18,6 +18,13 @@ enum class LevelsType {
     TRAILING_STOP,
 };
 
+template <OrderType type>
+constexpr LevelsType order_type_to_levels_type() noexcept {
+    if constexpr (type == OrderType::LIMIT) return LevelsType::PRICE;
+    else if constexpr (is_trailing(type)) return LevelsType::TRAILING_STOP;
+    return LevelsType::STOP;
+}
+
 template <typename Key, typename Value>
 using unordered_map = std::unordered_map<Key, Value>;
 
@@ -33,6 +40,9 @@ public:
     //  well, all have the same OrderIterator type
     using OrderIterator = typename PriceLevels<Order>::OrderIterator;
 
+    // TODO remove this
+    using LevelQueueDataType = typename PriceLevels<Order>::LevelQueueDataType;
+
     constexpr OrderBook(HashMap<OrderId, OrderIterator>* orders, const Symbol symbol, EventHandler* event_handler) noexcept
         : _price_levels(event_handler), _stop_levels(event_handler), _trailing_stop_levels(event_handler),
           _orders(orders), _symbol(symbol), _event_handler(event_handler) { }
@@ -43,46 +53,47 @@ public:
 
     constexpr void invalidate() noexcept { _symbol.id = SymbolId::invalid(); }
 
-    template <LevelsType type, typename Self>
+    template <OrderType type, typename Self>
     [[nodiscard]] constexpr auto& levels(this Self&& self) noexcept {
         // TODO are we returning the right stop and trailing stop side?
-        if constexpr (type == LevelsType::PRICE) {
+        constexpr auto level_type = order_type_to_levels_type<type>();
+        if constexpr (level_type == LevelsType::PRICE) {
             return self._price_levels;
-        } else if constexpr (type == LevelsType::STOP) {
+        } else if constexpr (level_type == LevelsType::STOP) {
             return self._stop_levels;
-        } else if constexpr (type == LevelsType::TRAILING_STOP) {
+        } else if constexpr (level_type == LevelsType::TRAILING_STOP) {
             return self._trailing_stop_levels;
         } else {
             assert(false && "Unknown level type");
         }
     }
 
-    template <LevelsType type, OrderSide side, typename Self>
+    template <OrderType type, OrderSide side, typename Self>
     constexpr auto& levels(this Self&& self) noexcept {
         return self.template levels<type>().template levels<side>();
     }
 
-    template <LevelsType type, typename Self>
+    template <OrderType type, typename Self>
     [[nodiscard]] constexpr auto& bids(this Self&& self) noexcept {
         return self.template levels<type>().bids();
     }
 
-    template <LevelsType type, typename Self>
+    template <OrderType type, typename Self>
     [[nodiscard]] constexpr auto& asks(this Self&& self) noexcept {
         return self.template levels<type>().asks();
     }
 
     template <typename Self>
     [[nodiscard]] constexpr auto& bids(this Self&& self) noexcept {
-        return self.template levels<LevelsType::PRICE>().bids();
+        return self.template levels<OrderType::LIMIT>().bids();
     }
 
     template <typename Self>
     [[nodiscard]] constexpr auto& asks(this Self&& self) noexcept {
-        return self.template levels<LevelsType::PRICE>().asks();
+        return self.template levels<OrderType::LIMIT>().asks();
     }
 
-    template <LevelsType type, OrderSide side, concepts::Order T>
+    template <OrderType type, OrderSide side, concepts::Order T>
     constexpr auto add_order(T&& order) noexcept {
         auto id = order.id();
 
@@ -92,16 +103,14 @@ public:
         auto level_it = levels.find(order.price());
         if (level_it == levels.end()) {
             // Price level doesn't exist and we need to create a new one
-            if constexpr (should_report()) {
-                event_handler().template on_price_level_add<type, side>(*this, order);
-            }
+            event_handler().template on_add_level<type, side>(*this, order);
             auto [new_it, success] = levels.add_level(order.price());
             level_it = new_it;
             assert(success && "Price level already exists, but you think it doesn't!");
         }
 
         if constexpr (should_report()) {
-            event_handler().template on_order_add<type, side>(*this, order);
+            event_handler().template on_add_order<type, side>(*this, order);
         }
 
         OrderIterator order_it = levels.add_order(std::forward<T>(order), level_it);
@@ -109,9 +118,9 @@ public:
         add_order_to_map(id, order_it);
     }
 
-    template <LevelsType type, OrderSide side>
+    template <OrderType type, OrderSide side>
     constexpr auto remove_order(OrderIterator order_it) {
-        auto id = order_it.id();
+        auto id = order_it->id();
 
         assert(orders().contains(id) && "Order with the same ID doesn't exists in the order book");
 
@@ -127,7 +136,15 @@ public:
             }
         }
 
-        levels.remove_order(order_it, level_it);
+        levels.template remove_order<type, side>(order_it, level_it);
+
+        if (level_it->second.is_empty()) {
+            event_handler().template on_remove_level<type, side>(*this, level_it->second);
+            // Is removing levels with total_quantity == 0 an optimization or pessimization?
+            // If you're not going to remove it, remember to consider levels with size == 0
+            //  non-present, and not count a Levels struct with multiple 0-size levels not empty
+            levels.remove_level(level_it);
+        }
 
         remove_order_from_map(id);
     }
@@ -206,29 +223,27 @@ public:
     }
 
     template <OrderType type, OrderSide side>
-    constexpr void execute_quantity(Order& order, const Quantity quantity, const Price price) noexcept {
+    constexpr void execute_quantity(OrderIterator order_it, const Quantity quantity, const Price price) noexcept {
 
-        event_handler().template on_execute_order<type, side>(order, quantity);
+        event_handler().template on_execute_order<type, side>(*order_it, quantity);
 
         update_last_matching_price<side>(price);
 
-        // TODO is this levels type correct?
-        reduce_order<LevelsType::PRICE, side>(order, quantity);
+        auto& price_levels = levels<type, side>();
+        auto level_it = price_levels.find(order_it->price());
+        auto& [level_price, level] = *level_it;
 
-        // TODO Add this to reduce order
-        // Update the order or delete the empty order
-        if (order.is_fully_filled()) {
-            event_handler().template on_remove_order<type, side>(order);
-            // TODO is this levels type correct?
-            remove_order<LevelsType::PRICE, side>(order);
-        } else {
-            event_handler().template on_execute_order<type, side>(order, quantity);
+        level.template execute_quantity<type, side>(order_it, quantity);
+
+        if (level.is_empty()) {
+            event_handler().template on_remove_level<type, side>(*this, level_price);
+            price_levels.remove_level(level_it);
         }
     }
 
-    constexpr void execute_quantity(Order& order, Quantity quantity) noexcept {
-        (void)order;
-        (void)quantity;
+    template <OrderType type, OrderSide side>
+    constexpr void execute_quantity(OrderIterator order_it, const Quantity quantity) noexcept {
+        execute_quantity<type, side>(order_it, quantity, order_it->price());
     }
 
     constexpr void reset_matching_prices() noexcept { }
@@ -239,13 +254,13 @@ public:
         return Price::invalid();
     }
 
-    template <LevelsType type, OrderSide side>
-    constexpr void reduce_order(Order& order, const Quantity quantity) noexcept {
-        (void)order;
+    template <OrderType type, OrderSide side>
+    constexpr void reduce_order(OrderIterator order_it, const Quantity quantity) noexcept {
+        (void)order_it;
         (void)quantity;
     }
 
-    template <LevelsType type, OrderSide side>
+    template <OrderType type, OrderSide side>
     constexpr void modify_order(Order& order, const Quantity quantity, const Price price, const bool mitigate) noexcept {
         (void)order;
         (void)quantity;
@@ -253,20 +268,14 @@ public:
         (void)mitigate;
     }
 
-    template <LevelsType type, OrderSide side>
-    constexpr void remove_order(Order& order) noexcept {
-        (void)order;
-        // Remove from the map as well
-    }
-
-    template <LevelsType type, OrderSide side, concepts::Order T>
-    constexpr void replace_order(Order& order, T&& new_order) noexcept {
+    template <OrderType type, OrderSide side, typename T>
+    constexpr void replace_order(OrderIterator order_it, T&& new_order) noexcept {
         // Replace atomically. Since the matching engine is single-threaded,
         //  it can do it by performing remove then add, without worrying
         //  about other operations happening between remove and add
         // TODO have the event handler report replacement instead of removal and addition
         // TODO extract the duplication between this and reduce_order, modify_order, remove_order, and replace_order
-        (void)order;
+        (void)order_it;
         (void)new_order;
     }
 
@@ -278,7 +287,7 @@ public:
         (void)order;
     }
 
-    template <LevelsType type, OrderSide side>
+    template <OrderType type, OrderSide side>
     constexpr void clear_levels() noexcept {
         auto& l = levels<type, side>();
         for (auto& [_, level] : l) {
@@ -289,16 +298,16 @@ public:
         l.clear();
     }
 
-    template <LevelsType type>
+    template <OrderType type>
     constexpr void clear_levels() noexcept {
         clear_levels<type, OrderSide::BUY>();
         clear_levels<type, OrderSide::SELL>();
     }
 
     constexpr void clear() noexcept {
-        clear_levels<LevelsType::PRICE>();
-        clear_levels<LevelsType::STOP>();
-        clear_levels<LevelsType::TRAILING_STOP>();
+        clear_levels<OrderType::LIMIT>();
+        clear_levels<OrderType::STOP>();
+        clear_levels<OrderType::TRAILING_STOP>();
     }
 
 };
