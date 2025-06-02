@@ -23,11 +23,10 @@ public:
     using reverse_iterator = typename ListType::reverse_iterator;
     using const_reverse_iterator = typename ListType::const_reverse_iterator;
 
-    template <concepts::Order T>
-    constexpr auto add_order(T&& order) {
+    constexpr auto add_order(value_type&& order) {
         _visible_volume += order.visible_quantity();
         _hidden_volume += order.hidden_quantity();
-        return orders.emplace_back(std::forward<T>(order));
+        return orders.emplace_back(std::move(order));
     }
 
     template <OrderType type, OrderSide side>
@@ -53,7 +52,7 @@ public:
     constexpr auto remove_order(iterator it) noexcept {
         _visible_volume -= it->visible_quantity();
         _hidden_volume -= it->hidden_quantity();
-        event_handler().template on_remove_order<type, side>(*it);
+        event_handler().template on_remove_order_without_orderbook<type, side>(*it);
         orders.erase(it);
     }
 
