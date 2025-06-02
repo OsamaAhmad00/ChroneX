@@ -46,13 +46,13 @@ public:
         return map().erase(level_it);
     }
 
-    template <typename T, typename Iter>
-    constexpr auto add_order(T&& order, Iter level_it) {
+    template <typename Iter>
+    constexpr auto add_order(Order&& order, Iter level_it) {
         assert(level_it != this->end() && "Trying to add an order to a non-existing level");
 
         ++_orders_count;
 
-        return level_it->second.add_order(std::forward<T>(order));
+        return level_it->second.add_order(std::move(order));
     }
 
     template <OrderType type, OrderSide side, typename T>

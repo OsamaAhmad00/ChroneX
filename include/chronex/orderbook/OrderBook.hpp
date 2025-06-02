@@ -93,27 +93,19 @@ public:
         return self.template levels<OrderType::LIMIT>().asks();
     }
 
-    template <OrderType type, OrderSide side, concepts::Order T>
-    constexpr auto add_order(T&& order) noexcept {
+    template <OrderType type, OrderSide side>
+    constexpr auto add_order(Order&& order) noexcept {
         auto id = order.id();
 
         assert(!orders().contains(id) && "Order with the same ID already exists in the order book");
 
-        auto& levels = this->template levels<type, side>();
-        auto level_it = levels.find(order.price());
-        if (level_it == levels.end()) {
-            // Price level doesn't exist and we need to create a new one
-            event_handler().template on_add_level<type, side>(*this, order);
-            auto [new_it, success] = levels.add_level(order.price());
-            level_it = new_it;
-            assert(success && "Price level already exists, but you think it doesn't!");
-        }
+        auto level_it = this->template get_or_add_level<type, side>(order.price());
 
         if constexpr (should_report()) {
             event_handler().template on_add_order<type, side>(*this, order);
         }
 
-        OrderIterator order_it = levels.add_order(std::forward<T>(order), level_it);
+        OrderIterator order_it = levels<type, side>().add_order(std::move(order), level_it);
 
         add_order_to_map(id, order_it);
     }
@@ -207,6 +199,8 @@ private:
     Price _matching_bid_price = Price::invalid();
     Price _matching_ask_price = Price::invalid();
 
+    // TODO add _last_bid_price and _last_ask_price
+
     Price _trailing_bid_price = Price::invalid();
     Price _trailing_ask_price = Price::invalid();
 
@@ -227,6 +221,7 @@ public:
 
         event_handler().template on_execute_order<type, side>(*order_it, quantity);
 
+        // TODO check for last price as well
         update_last_matching_price<side>(price);
 
         auto& price_levels = levels<type, side>();
@@ -279,12 +274,31 @@ public:
         (void)new_order;
     }
 
+    template <OrderType type, OrderSide side>
+    constexpr auto get_or_add_level(const Price price) noexcept {
+        auto& levels = this->template levels<type, side>();
+        auto level_it = levels.find(price);
+        if (level_it == levels.end()) {
+            // Price level doesn't exist and we need to create a new one
+            event_handler().template on_add_level<type, side>(*this, price);
+            auto [new_it, success] = levels.add_level(price);
+            level_it = new_it;
+            assert(success && "Price level already exists, but you think it doesn't!");
+        }
+        return level_it;
+    }
+
     template <OrderSide side>
     [[nodiscard]] constexpr Price get_market_price() const noexcept { return Price::invalid(); }
 
     template <OrderType type, OrderSide side>
-    constexpr void unlink_order(Order& order) noexcept {
-        (void)order;
+    constexpr void unlink_order(OrderIterator order_it) noexcept {
+        (void)order_it;
+    }
+
+    template <OrderType type, OrderSide side>
+    constexpr void link_order(OrderIterator order_it) noexcept {
+        (void)order_it;
     }
 
     template <OrderType type, OrderSide side>

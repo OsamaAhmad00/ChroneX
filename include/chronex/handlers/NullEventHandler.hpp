@@ -18,26 +18,30 @@ public:
     void on_remove_orderbook(T&) noexcept { };
 
     // Levels
-    template <OrderType type, OrderSide side, typename T, typename U>
+    template <OrderType, OrderSide, typename T, typename U>
     void on_add_level(T&, U&) noexcept { };
-    template <OrderType type, OrderSide side, typename T, typename U>
+    template <OrderType, OrderSide, typename T, typename U>
     void on_remove_level(T&, U&) noexcept { };
 
     // Orders
-    template <OrderType, OrderSide, typename T>
-    void on_create_order(T&) const noexcept { }
-    template <OrderType, OrderSide, typename T>
-    void on_add_order(T&) const noexcept { }
+    template <OrderType, OrderSide, typename T, typename U>
+    void on_create_order(T&, U&) const noexcept { }
+    template <OrderType, OrderSide, typename T, typename U>
+    void on_add_order(T&, U&) const noexcept { }
     template <OrderType, OrderSide, typename T, typename V>
     void on_execute_order(T&, V) const noexcept { }
     template <OrderSide, typename T, typename U, typename V>
     void on_execute_order(T&, U, V) const noexcept { }
-    template <OrderSide, typename T, typename U>
-    void on_match_order(T&, U&) const noexcept { }
+    template <OrderSide, OrderSide, typename T, typename U, typename V>
+    void on_match_order(T&, U&, V&) const noexcept { }
+    template <OrderType, OrderSide, typename T, typename U>
+    void on_remove_order(T&, U&) const noexcept { }
+    template <OrderType, OrderSide, typename T, typename U>
+    void on_trigger_stop_order(T&, U&) noexcept { };
+
+    // TODO remove
     template <OrderType, OrderSide, typename T>
-    void on_remove_order(T&) const noexcept { }
-    template <OrderType type, OrderSide side, typename T>
-    void on_stop_order_trigger(T&) noexcept { };
+    void on_remove_order_without_orderbook(T&) const noexcept { }
 };
 
 }

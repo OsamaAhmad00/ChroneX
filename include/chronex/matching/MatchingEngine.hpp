@@ -137,12 +137,12 @@ public:
     constexpr void add_market_order(T&& order) {
         auto& orderbook = orderbook_at(order.symbol_id());
 
-        event_handler().template on_add_order<OrderType::MARKET, side>(order);
+        event_handler().template on_add_order<OrderType::MARKET, side>(orderbook, order);
 
         if (is_matching_enabled())
             match_market_order<side>(orderbook, order);
 
-        event_handler().template on_remove_order<OrderType::MARKET, side>(order);
+        event_handler().template on_remove_order<OrderType::MARKET, side>(orderbook, order);
 
         perform_post_order_processing(orderbook);
     }
@@ -151,7 +151,7 @@ public:
     constexpr void add_limit_order(T&& order) {
         auto& orderbook = orderbook_at(order.symbol_id());
 
-        event_handler().template on_add_order<OrderType::LIMIT, side>(order);
+        event_handler().template on_add_order<OrderType::LIMIT, side>(orderbook, order);
 
         // Since this is a single-threaded engine, order additions will take place only
         //  after no current possible matches. This means that we don't need to respect
@@ -176,10 +176,10 @@ public:
             order.set_stop_price(orderbook.template calculate_trailing_stop_price<side>(order));
         }
 
-        event_handler().template on_add_order<type, side>(order);
+        event_handler().template on_add_order<type, side>(orderbook, order);
 
         if (int(is_matching_enabled()) & int(should_trigger<side>(orderbook, order))) {
-            return trigger_stop_order<type, side>(orderbook, order);
+            return trigger_new_stop_order<type, side>(orderbook, std::forward<T>(order));
         }
 
         insert_stop_order<type, side>(orderbook, std::forward<T>(order));
@@ -198,10 +198,10 @@ public:
             order.set_stop_and_trailing_stop_prices(trailing_stop_price);
         }
 
-        event_handler().template on_add_order<type, side>(order);
+        event_handler().template on_add_order<type, side>(orderbook, order);
 
         if (int(is_matching_enabled()) & int(should_trigger<side>(orderbook, order))) {
-            return trigger_stop_order<type, side>(orderbook, order);
+            return trigger_new_stop_order<type, side>(orderbook, std::forward<T>(order));
         }
 
         insert_stop_order<type, side>(orderbook, std::forward<T>(order));
@@ -286,20 +286,23 @@ private:
 
     template <typename Func, typename... Args>
     constexpr void resolve_type_and_side_then_call(Order& order, Func&& func, Args&&... args) noexcept {
+        #define CASE(TYPE) case OrderType::TYPE: \
+            return func.template operator()<OrderType::TYPE, side>(std::forward<Args2>(args2)...)
+
         auto f = [&] <OrderSide side, typename... Args2> (Args2&&... args2) {
             switch (order.type()) {
-                case OrderType::MARKET: return func.template operator()<OrderType::MARKET, side>(std::forward<Args2>(args2...)...);
-                case OrderType::LIMIT: return func.template operator()<OrderType::LIMIT, side>(std::forward<Args2>(args2)...);
-                case OrderType::STOP: return func.template operator()<OrderType::STOP, side>(std::forward<Args2>(args2)...);
-                case OrderType::TRAILING_STOP: return func.template operator()<OrderType::TRAILING_STOP, side>(std::forward<Args2>(args2)...);
-                case OrderType::STOP_LIMIT: return func.template operator()<OrderType::STOP_LIMIT, side>(std::forward<Args2>(args2)...);
-                case OrderType::TRAILING_STOP_LIMIT: return func.template operator()<OrderType::TRAILING_STOP_LIMIT, side>(std::forward<Args2>(args2)...);
-                case OrderType::TRIGGERED_STOP: return func.template operator()<OrderType::TRIGGERED_STOP, side>(std::forward<Args2>(args2)...);
-                case OrderType::TRIGGERED_STOP_LIMIT: return func.template operator()<OrderType::TRIGGERED_STOP_LIMIT, side>(std::forward<Args2>(args2)...);
-                case OrderType::TRIGGERED_TRAILING_STOP: return func.template operator()<OrderType::TRIGGERED_TRAILING_STOP, side>(std::forward<Args2>(args2)...);
-                default: ;
+                CASE(MARKET);
+                CASE(LIMIT);
+                CASE(STOP);
+                CASE(TRAILING_STOP);
+                CASE(STOP_LIMIT);
+                CASE(TRAILING_STOP_LIMIT);
+                CASE(TRIGGERED_STOP);
+                CASE(TRIGGERED_STOP_LIMIT);
+                CASE(TRIGGERED_TRAILING_STOP);
+                CASE(TRIGGERED_TRAILING_STOP_LIMIT);
+                default: assert(false && "Invalid order type");
             }
-            return func.template operator()<OrderType::TRIGGERED_TRAILING_STOP_LIMIT, side>(std::forward<Args2>(args2)...);
         };
 
         if (order.side() == OrderSide::BUY)
@@ -324,6 +327,8 @@ private:
                 // If both of them are AONs, then the first branch will be taken.
                 // TODO In case both of them are AONs, should we favor (execute
                 //  with the price of) the bid order or the ask order?
+                // TODO pass the already fetched begin() instead of letting
+                //  other methods fetch it again?
                 if (bid_it->is_aon()) {
                     match_aon(orderbook, bid_it->price());
                 } else if (ask_it->is_aon()) {
@@ -335,21 +340,21 @@ private:
                     //  other will be partially filled (reduced). Determine which side is
                     //  executed and which side is reduced.
                     if (bid_it->leaves_quantity() > ask_it->leaves_quantity()) {
-                        match_orders<OrderSide::BUY>(bid_it, ask_it, orderbook);
+                        match_orders<OrderSide::BUY, OrderSide::SELL>(orderbook, bid_it, ask_it);
                     } else {
-                        match_orders<OrderSide::SELL>(ask_it, bid_it, orderbook);
+                        match_orders<OrderSide::SELL, OrderSide::BUY>(orderbook, ask_it, bid_it);
                     }
                 }
 
                 // At this point, we must've had executed at least one order. Check for stop orders
-                try_trigger_stop_orders<OrderSide::BUY>(orderbook, bid_level);
-                try_trigger_stop_orders<OrderSide::SELL>(orderbook, ask_level);
+                try_trigger_stop_orders<OrderSide::BUY>(orderbook, bid_level, bid_price);
+                try_trigger_stop_orders<OrderSide::SELL>(orderbook, ask_level, ask_price);
             }
 
             // Trailing stop orders modify the stop price, and this is not for free.
             //  Only after all limit and stop orders have settled down, try triggering
             //  trailing stop limit orders. If none is triggered, then we're done.
-            if (!try_trigger_stop_orders(orderbook))
+            if (try_trigger_stop_orders(orderbook) == StopOrdersAction::NOT_TRIGGERED)
                 break;
         }
     }
@@ -361,15 +366,13 @@ private:
         execute_matching_chain<OrderSide::SELL>(orderbook, price, chain_volume);
     }
 
-    template <OrderSide executing_side>
-    constexpr void match_orders(OrderIterator executing_order, OrderIterator& reducing_order, OrderBook& orderbook) noexcept {
-        constexpr auto reducing_side = opposite_side<executing_side>();
-
+    template <OrderSide executing_side, OrderSide reducing_side>
+    constexpr void match_orders(OrderBook& orderbook, OrderIterator executing_order, OrderIterator& reducing_order) noexcept {
         Quantity quantity = executing_order->leaves_quantity();
         // TODO should the price be of an arbitrary side?
         Price price = executing_order->price();
 
-        event_handler().template on_match_order<executing_side>(*executing_order, *reducing_order);
+        event_handler().template on_match_order<executing_side, reducing_side>(orderbook, *executing_order, *reducing_order);
 
         orderbook.template execute_quantity<OrderType::LIMIT, executing_side>(executing_order, quantity, price);
         orderbook.template execute_quantity<OrderType::LIMIT, reducing_side >(reducing_order , quantity, price);
@@ -435,11 +438,11 @@ private:
             Quantity quantity = [&] {
                 if (order_has_less_quantity) {
                     // `order` is the actual executing order
-                    event_handler().template on_match_order<order_side>(*order_it, *executing_it);
+                    event_handler().template on_match_order<order_side, opposite>(orderbook, *order_it, *executing_it);
                     return order_it->leaves_quantity();
                 }
 
-                event_handler().template on_match_order<opposite>(*executing_it, *order_it);
+                event_handler().template on_match_order<opposite, order_side>(orderbook, *executing_it, *order_it);
                 return executing_it->leaves_quantity();
             }();
 
@@ -489,43 +492,77 @@ private:
         match_order<side>(orderbook, order);
     }
 
-    template <OrderType type, OrderSide side, concepts::Order T>
-    constexpr bool try_add_limit_order(OrderBook& orderbook, T&& order) {
+    template <OrderType type, OrderSide side>
+    constexpr bool try_add_limit_order(OrderBook& orderbook, Order&& order) {
         // No need for short-circuit behavior here because the checks are simple, and
         //  having short-circuit behavior would be compiled to multiple branches, making
         //  it harder for the branch predictor to do its job
         if (int(!order.is_fully_filled()) & int(!order.is_ioc()) & int(!order.is_fok())) {
-            orderbook.template add_order<type, side>(std::forward<T>(order));
+            orderbook.template add_order<type, side>(std::move(order));
             return true;
         } else {
-            event_handler().template on_remove_order<OrderType::LIMIT, side>(order);
+            event_handler().template on_remove_order<OrderType::LIMIT, side>(orderbook, order);
+            return false;
+        }
+    }
+
+    template <OrderType type, OrderSide side>
+    constexpr bool try_link_limit_order(OrderBook& orderbook, OrderIterator order_it) {
+        // TODO refactor the duplication between this and try_add_limit_order
+        // No need for short-circuit behavior here because the checks are simple, and
+        //  having short-circuit behavior would be compiled to multiple branches, making
+        //  it harder for the branch predictor to do its job
+        auto& order = *order_it;
+        if (int(!order.is_fully_filled()) & int(!order.is_ioc()) & int(!order.is_fok())) {
+            orderbook.template link_order<type, side>(order_it);
+            return true;
+        } else {
+            event_handler().template on_remove_order<OrderType::LIMIT, side>(orderbook, order);
             return false;
         }
     }
 
     template <typename First, typename... Rest>
     constexpr bool is_any_triggered(First&& first, Rest&&... rest) const noexcept {
-        if constexpr (sizeof...(rest) == 0) return first == StopOrdersAction::TRIGGERED;
-        return (first == StopOrdersAction::TRIGGERED) | is_any_triggered<rest...>();
+        const bool res = first == StopOrdersAction::TRIGGERED;
+        if constexpr (sizeof...(Rest) == 0) return res;
+        else {
+            return bool(
+                int(res) |
+                int(is_any_triggered(std::forward<Rest>(rest)...))
+            );
+        }
     }
 
-    constexpr StopOrdersAction activate_stop_orders(OrderBook& orderbook) noexcept {
-        // TODO refactor this method
+    template <OrderType type, OrderSide side>
+    constexpr auto try_trigger_stop_order_level(OrderBook& orderbook, const Price stop_price) noexcept {
+        // TODO rename this function
+        auto& levels = orderbook.template bids<type>();
+        if (levels.is_empty()) return StopOrdersAction::NOT_TRIGGERED;
+        auto& [_, best] = *levels.begin();
+        return try_trigger_stop_orders<side>(orderbook, best, stop_price);
+    }
+
+    template <OrderSide side>
+    constexpr auto try_trigger_stop_orders_side(OrderBook& orderbook, const Price stop_price) noexcept -> std::pair<StopOrdersAction, StopOrdersAction> {
+        // TODO rename this function
+        auto a = try_trigger_stop_order_level<OrderType::STOP, side>(orderbook, stop_price);
+        auto b = try_trigger_stop_order_level<OrderType::TRAILING_STOP, side>(orderbook, stop_price);
+        recalculate_trailing_stop_price(orderbook);
+        return { a, b };
+    }
+
+    constexpr StopOrdersAction try_trigger_stop_orders(OrderBook& orderbook) noexcept {
         auto result = StopOrdersAction::NOT_TRIGGERED;
 
         while (true) {
+            // TODO make sure of sides
             auto ask_price = orderbook.template get_market_price<OrderSide::SELL>();
-            auto a = activate_stop_orders(orderbook, orderbook.template levels<LevelsType::STOP>().bids(), ask_price);
-            auto b = activate_stop_orders(orderbook, orderbook.template levels<LevelsType::TRAILING_STOP>().bids(), ask_price);
-            recalculate_trailing_stop_price(orderbook);
-
+            auto [a, b] = try_trigger_stop_orders_side<OrderSide::BUY>(orderbook, ask_price);
             auto bid_price = orderbook.template get_market_price<OrderSide::BUY>();
-            auto c = activate_stop_orders(orderbook, orderbook.template levels<LevelsType::STOP>().asks(), bid_price);
-            auto d = activate_stop_orders(orderbook, orderbook.template levels<LevelsType::TRAILING_STOP>().asks(), bid_price);
-            recalculate_trailing_stop_price(orderbook);
+            auto [c, d] = try_trigger_stop_orders_side<OrderSide::SELL>(orderbook, bid_price);
 
-            constexpr auto triggered = is_any_triggered(a, b, c, d);
-            if (triggered) {
+            if (is_any_triggered(a, b, c, d)) {
                 result = StopOrdersAction::TRIGGERED;
             } else {
                 break;
@@ -536,30 +573,27 @@ private:
     }
 
     template <OrderSide level_side, typename T>
-    constexpr StopOrdersAction activate_stop_orders(OrderBook& orderbook, T& level, Price level_price, Price stop_price) noexcept {
-        bool should_trigger = [&] {
-            if constexpr (level_side == OrderSide::BUY) {
-                return stop_price <= level_price;
-            }
-            return stop_price >= level_price;
-        };
+    constexpr StopOrdersAction try_trigger_stop_orders(OrderBook& orderbook, T& level, const Price level_price) noexcept {
+        constexpr auto opposite = opposite_side<level_side>();
+        auto stop_price = orderbook.template get_market_price<opposite>();
+        bool should_trigger = prices_cross<level_side>(level_price, stop_price);
 
-        if (!should_trigger | level.is_empty()) return StopOrdersAction::NOT_TRIGGERED;
+        if (int(!should_trigger) | int(level.is_empty())) return StopOrdersAction::NOT_TRIGGERED;
 
         while (!level.is_empty()) {
-            auto order_it = level.best();
+            auto order_it = level.begin();
             switch (order_it->type()) {
                 case OrderType::STOP:
-                    activate_stop_order<OrderType::STOP, level_side>(orderbook, *order_it, level_price);
+                    trigger_stop_order<OrderType::STOP, level_side>(orderbook, order_it);
                     break;
                 case OrderType::TRAILING_STOP:
-                    activate_stop_order<OrderType::TRAILING_STOP, level_side>(orderbook, *order_it, level_price);
+                    trigger_stop_order<OrderType::TRAILING_STOP, level_side>(orderbook, order_it);
                     break;
                 case OrderType::STOP_LIMIT:
-                    activate_stop_limit_order<OrderType::STOP_LIMIT, level_side>(orderbook, *order_it, level_price);
+                    trigger_stop_limit_order<OrderType::STOP_LIMIT, level_side>(orderbook, order_it);
                     break;
                 case OrderType::TRAILING_STOP_LIMIT:
-                    activate_stop_limit_order<OrderType::TRAILING_STOP_LIMIT, level_side>(orderbook, *order_it, level_price);
+                    trigger_stop_limit_order<OrderType::TRAILING_STOP_LIMIT, level_side>(orderbook, order_it);
                     break;
                 default:
                     assert(false && "Unsupported order type");
@@ -570,34 +604,38 @@ private:
     }
 
     template <OrderType type, OrderSide side>
-    constexpr void activate_stop_order(OrderBook& orderbook, Order& order) noexcept {
-        order.template mark_triggered<type>();
+    constexpr void trigger_stop_order(OrderBook& orderbook, OrderIterator order_it) noexcept {
+        order_it->template mark_triggered<type>();
         // TODO remove this and have a way to handle triggered stop orders accordingly
-        if (order.time_in_force() != TimeInForce::FOK) {
-            order.set_time_in_force(TimeInForce::IOC);
+        if (order_it->time_in_force() != TimeInForce::FOK) {
+            order_it->set_time_in_force(TimeInForce::IOC);
         }
 
-        event_handler().on_stop_order_trigger<type, side>(order);
+        event_handler().template on_trigger_stop_order<type, side>(orderbook, *order_it);
 
-        match_market_order<side>(orderbook, order);
+        // TODO call add_market_order?
+
+        match_market_order<side>(orderbook, *order_it);
 
         // Remove only after we're done using it
         // Remove the order from its stop order level and create a market
-        event_handler().on_delete_order(order);
-        orders().erase(order.id());
-        orderbook.template remove_order<type, side>(order);
+        event_handler().template on_remove_order<type, side>(orderbook, *order_it);
+        orders().erase(order_it->id());
+        orderbook.template remove_order<type, side>(order_it);
     }
 
     template <OrderType type, OrderSide side>
-    constexpr void activate_stop_limit_order(OrderBook& orderbook, Order& order) noexcept {
+    constexpr void trigger_stop_limit_order(OrderBook& orderbook, OrderIterator order_it) noexcept {
         // Unlink the order from its stop order level and link it into a limit order level
-        orderbook.template unlink_order<type, side>(order);
+        orderbook.template unlink_order<type, side>(order_it);
 
-        order.template mark_triggered<type>();
+        order_it->template mark_triggered<type>();
 
-        event_handler().on_stop_order_trigger<type, side>(order);
+        event_handler().template on_trigger_stop_order<type, side>(orderbook, *order_it);
 
-        add_limit_order<type, side>(orderbook, order);
+        match_limit_order<side>(orderbook, *order_it);
+
+        try_link_limit_order<type, side>(orderbook, order_it);
     }
 
     constexpr Quantity calculate_matching_chain_quantity(OrderIterator order_it, Quantity needed) noexcept {
@@ -854,24 +892,17 @@ private:
 
 public:
 
-    template <OrderSide side, typename T>
-    constexpr bool try_trigger_stop_orders(OrderBook& orderbook, T&& level) noexcept {
-        (void)orderbook;
-        (void)level;
-        return true;
-    }
-
-    template <OrderType type, OrderSide side>
-    constexpr bool try_trigger_stop_order(OrderBook& orderbook, Order& order) noexcept {
+    template <OrderType type, OrderSide side, typename T>
+    constexpr bool try_trigger_new_stop_order(OrderBook& orderbook, T&& order) noexcept {
         if (should_trigger()) {
-            trigger_stop_order<type, side>(orderbook, order);
+            trigger_new_stop_order<type, side>(orderbook, std::forward<T>(order));
             return true;
         }
         return false;
     }
 
-    template <OrderType type, OrderSide side>
-    constexpr void trigger_stop_order(OrderBook& orderbook, Order& order) noexcept {
+    template <OrderType type, OrderSide side, typename T>
+    constexpr void trigger_new_stop_order(OrderBook& orderbook, T&& order) noexcept {
         order.template mark_triggered<type>();
 
         if constexpr (is_market(type)) {
@@ -879,7 +910,7 @@ public:
                 order.set_time_in_force(TimeInForce::IOC);
         }
 
-        event_handler().template on_stop_order_trigger<type, side>(order);
+        event_handler().template on_trigger_stop_order<type, side>(orderbook, order);
 
         if constexpr (is_market(type)) {
             match_market_order<side>(orderbook, order);
@@ -900,13 +931,8 @@ public:
         if (!order.is_fully_filled()) {
             orderbook.template add_order<type, side>(std::forward<T>(order));
         } else {
-            event_handler().template on_remove_order<type, side>(order);
+            event_handler().template on_remove_order<type, side>(orderbook, order);
         }
-    }
-
-    constexpr bool try_trigger_stop_orders(OrderBook& orderbook) noexcept {
-        (void)orderbook;
-        return true;
     }
 
     template <OrderSide side, typename T>
@@ -919,6 +945,10 @@ public:
     template <OrderSide side>
     constexpr void match_limit_order(OrderBook& orderbook, Order& order) noexcept {
         match_order<side>(orderbook, order);
+    }
+
+    constexpr auto recalculate_trailing_stop_price(OrderBook& orderbook) noexcept {
+        (void)orderbook;
     }
 };
 

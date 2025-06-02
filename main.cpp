@@ -4,7 +4,7 @@ auto create_order(uint64_t id) {
     return chronex::Order {
         chronex::OrderId { id },
         chronex::SymbolId { 1 },
-        chronex::OrderType::MARKET,
+        chronex::OrderType::LIMIT,
         chronex::OrderSide::BUY,
         chronex::TimeInForce::FOK,
         chronex::Quantity { 100 },
@@ -13,7 +13,7 @@ auto create_order(uint64_t id) {
         chronex::Price { 100 },
         chronex::Price { 100 },
         chronex::Price { 100 },
-        chronex::Price { 100 },
+        chronex::Price { 0 },
         chronex::TrailingOffset::from_price(chronex::Price { 100 }),
         chronex::TrailingOffset::from_price(chronex::Price { 100 })
     };
