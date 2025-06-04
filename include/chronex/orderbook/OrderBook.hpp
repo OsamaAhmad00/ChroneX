@@ -128,7 +128,7 @@ public:
             }
         }
 
-        levels.template remove_order<type, side>(order_it, level_it);
+        levels.remove_order(order_it, level_it);
 
         if (level_it->second.is_empty()) {
             event_handler().template on_remove_level<type, side>(*this, level_it->second);
@@ -219,8 +219,6 @@ public:
     template <OrderType type, OrderSide side>
     constexpr void execute_quantity(OrderIterator order_it, const Quantity quantity, const Price price) noexcept {
 
-        event_handler().template on_execute_order<type, side>(*order_it, quantity);
-
         // TODO check for last price as well
         update_last_matching_price<side>(price);
 
@@ -228,7 +226,14 @@ public:
         auto level_it = price_levels.find(order_it->price());
         auto& [level_price, level] = *level_it;
 
-        level.template execute_quantity<type, side>(order_it, quantity);
+        event_handler().template on_execute_order<side>(*this, *order_it, quantity, price);
+        if (quantity == order_it->leaves_quantity()) {
+            // TODO report both execute, then remove if it's fully executed?
+            event_handler().template on_remove_order<type, side>(*this, *order_it);
+        }
+
+        // Execution might remove the order. Don't use it after execution
+        level.execute_quantity(order_it, quantity);
 
         if (level.is_empty()) {
             event_handler().template on_remove_level<type, side>(*this, level_price);
@@ -290,6 +295,12 @@ public:
 
     template <OrderSide side>
     [[nodiscard]] constexpr Price get_market_price() const noexcept { return Price::invalid(); }
+
+    template <OrderSide side>
+    [[nodiscard]] constexpr Price get_trailing_stop_price() const noexcept { return Price::invalid(); }
+
+    template <OrderSide side>
+    constexpr void set_trailing_stop_price(const Price price) const noexcept { (void)price; }
 
     template <OrderType type, OrderSide side>
     constexpr void unlink_order(OrderIterator order_it) noexcept {

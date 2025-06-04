@@ -29,12 +29,11 @@ public:
         return orders.emplace_back(std::move(order));
     }
 
-    template <OrderType type, OrderSide side>
     constexpr auto execute_quantity(iterator it, Quantity quantity) {
         assert(total_volume() <= it->leaves_quantity() && "Trying to execute more quantity than the level has left");
 
         if (quantity == it->leaves_quantity()) {
-            return remove_order<type, side>(it);
+            return remove_order(it);
         }
 
         auto old_visible = it->visible_quantity();
@@ -44,15 +43,11 @@ public:
 
         _visible_volume -= (old_visible - it->visible_quantity());
         _hidden_volume -= (old_hidden - it->hidden_quantity());
-
-        event_handler().template on_execute_order<type, side>(*it, quantity);
     }
 
-    template <OrderType type, OrderSide side>
     constexpr auto remove_order(iterator it) noexcept {
         _visible_volume -= it->visible_quantity();
         _hidden_volume -= it->hidden_quantity();
-        event_handler().template on_remove_order_without_orderbook<type, side>(*it);
         orders.erase(it);
     }
 

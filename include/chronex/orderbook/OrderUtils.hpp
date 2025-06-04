@@ -208,6 +208,20 @@ struct OrderId {
     static constexpr OrderId invalid() noexcept { return OrderId { std::numeric_limits<decltype(value)>::max() }; }
 };
 
+template <typename T, typename U>
+constexpr auto safe_add(T t, U u) noexcept {
+    auto max = std::numeric_limits<decltype(t + u)>::max();
+    assert((t <= (max - u)) && "Overflow");
+    return t + u;
+}
+
+template <typename T, typename U>
+constexpr auto safe_sub(T t, U u) noexcept {
+    auto min = std::numeric_limits<decltype(t - u)>::min();
+    assert((t >= (min + u)) && "Underflow");
+    return t - u;
+}
+
 }
 
 namespace std {

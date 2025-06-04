@@ -115,7 +115,13 @@ struct Order {
     }
 
     template <OrderSide side>
-    constexpr void add_slippage() noexcept { }
+    constexpr void add_slippage() noexcept {
+        if constexpr (side == OrderSide::BUY) {
+            _price.value = safe_add(_price.value, slippage().value);
+        } else {
+            _price.value = safe_sub(_price.value, slippage().value);
+        }
+    }
 
     Order(const Order&) noexcept = delete;
     Order& operator=(const Order&) noexcept = delete;
