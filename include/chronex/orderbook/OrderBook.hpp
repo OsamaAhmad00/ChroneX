@@ -148,6 +148,31 @@ public:
         return this->remove_order<type, OrderSide::SELL>(order_it);
     }
 
+    template <OrderType type, OrderSide side>
+    constexpr void reduce_order(OrderIterator order_it, const Quantity quantity) noexcept {
+        (void)order_it;
+        (void)quantity;
+    }
+
+    template <OrderType type, OrderSide side>
+    constexpr void modify_order(Order& order, const Quantity quantity, const Price price, const bool mitigate) noexcept {
+        (void)order;
+        (void)quantity;
+        (void)price;
+        (void)mitigate;
+    }
+
+    template <OrderType type, OrderSide side, typename T>
+    constexpr void replace_order(OrderIterator order_it, T&& new_order) noexcept {
+        // Replace atomically. Since the matching engine is single-threaded,
+        //  it can do it by performing remove then add, without worrying
+        //  about other operations happening between remove and add
+        // TODO have the event handler report replacement instead of removal and addition
+        // TODO extract the duplication between this and reduce_order, modify_order, remove_order, and replace_order
+        (void)order_it;
+        (void)new_order;
+    }
+
     [[nodiscard]] constexpr auto& symbol() const noexcept { return _symbol; }
 
     [[nodiscard]] constexpr auto& symbol_id() const noexcept { return symbol().id; }
@@ -190,37 +215,43 @@ private:
         return *_event_handler;
     }
 
+    template <OrderSide side>
+    [[nodiscard]] constexpr Price get_price(const Price price) const noexcept {
+        if constexpr (side == OrderSide::BUY) {
+            auto best_price = bids().is_empty() ? Price::min() : bids().begin()->first;
+            return std::max(price, best_price);
+        } else {
+            auto best_price = asks().is_empty() ? Price::max() : asks().begin()->first;
+            return std::min(price, best_price);
+        }
+    }
+
     PriceLevels       <Order> _price_levels;
     StopLevels        <Order> _stop_levels;
     TrailingStopLevels<Order> _trailing_stop_levels;
 
     HashMap<OrderId, OrderIterator>* _orders { };
 
-    Price _matching_bid_price = Price::invalid();
-    Price _matching_ask_price = Price::invalid();
+    Price _last_bid_price = Price::min();
+    Price _last_ask_price = Price::max();
 
-    // TODO add _last_bid_price and _last_ask_price
+    Price _matching_bid_price = Price::min();
+    Price _matching_ask_price = Price::max();
 
-    Price _trailing_bid_price = Price::invalid();
-    Price _trailing_ask_price = Price::invalid();
+    Price _trailing_bid_price = Price::min();
+    Price _trailing_ask_price = Price::max();
 
     Symbol _symbol { };
 
     EventHandler* _event_handler = nullptr;
 
-
 public:
-
-    template <OrderSide side>
-    constexpr void update_last_matching_price(Price price) noexcept {
-        (void)price;
-    }
 
     template <OrderType type, OrderSide side>
     constexpr void execute_quantity(OrderIterator order_it, const Quantity quantity, const Price price) noexcept {
 
         // TODO check for last price as well
-        update_last_matching_price<side>(price);
+        update_matching_price<side>(price);
 
         auto& price_levels = levels<type, side>();
         auto level_it = price_levels.find(order_it->price());
@@ -246,38 +277,16 @@ public:
         execute_quantity<type, side>(order_it, quantity, order_it->price());
     }
 
-    constexpr void reset_matching_prices() noexcept { }
+    constexpr void reset_matching_prices() noexcept {
+        _matching_bid_price = Price::min();
+        _matching_ask_price = Price::max();
+    }
 
     template <OrderSide side>
     constexpr Price calculate_trailing_stop_price(Order& order) noexcept {
         auto market_price = get_market_price<opposite_side<side>()>();
         auto old_price = order.stop_price();
         return order.trailing_distance().template trailing_limit<side>(old_price, market_price);
-    }
-
-    template <OrderType type, OrderSide side>
-    constexpr void reduce_order(OrderIterator order_it, const Quantity quantity) noexcept {
-        (void)order_it;
-        (void)quantity;
-    }
-
-    template <OrderType type, OrderSide side>
-    constexpr void modify_order(Order& order, const Quantity quantity, const Price price, const bool mitigate) noexcept {
-        (void)order;
-        (void)quantity;
-        (void)price;
-        (void)mitigate;
-    }
-
-    template <OrderType type, OrderSide side, typename T>
-    constexpr void replace_order(OrderIterator order_it, T&& new_order) noexcept {
-        // Replace atomically. Since the matching engine is single-threaded,
-        //  it can do it by performing remove then add, without worrying
-        //  about other operations happening between remove and add
-        // TODO have the event handler report replacement instead of removal and addition
-        // TODO extract the duplication between this and reduce_order, modify_order, remove_order, and replace_order
-        (void)order_it;
-        (void)new_order;
     }
 
     template <OrderType type, OrderSide side>
@@ -295,22 +304,71 @@ public:
     }
 
     template <OrderSide side>
-    [[nodiscard]] constexpr Price get_market_price() const noexcept { return Price::invalid(); }
+    [[nodiscard]] constexpr Price get_market_price() const noexcept {
+        if constexpr (side == OrderSide::BUY) {
+            return get_price<side>(_matching_bid_price);
+        } else {
+            return get_price<side>(_matching_ask_price);
+        }
+    }
 
     template <OrderSide side>
-    [[nodiscard]] constexpr Price get_trailing_stop_price() const noexcept { return Price::invalid(); }
+    [[nodiscard]] constexpr Price get_market_trailing_stop_price() const noexcept {
+        // TODO remove duplication here
+        if constexpr (side == OrderSide::BUY) {
+            return get_price<side>(_last_bid_price);
+        } else {
+            return get_price<side>(_last_ask_price);
+        }
+    }
 
     template <OrderSide side>
-    constexpr void set_trailing_stop_price(const Price price) const noexcept { (void)price; }
+    [[nodiscard]] constexpr Price get_trailing_stop_price() const noexcept {
+        if constexpr (side == OrderSide::BUY) {
+            return _trailing_bid_price;
+        } else {
+            return _trailing_ask_price;
+        }
+    }
+
+    template <OrderSide side>
+    constexpr void update_matching_price(Price price) noexcept {
+        if constexpr (side == OrderSide::BUY) {
+            _matching_bid_price = price;
+        } else {
+            _matching_ask_price = price;
+        }
+    }
+
+    template <OrderSide side>
+    constexpr void update_trailing_stop_price(const Price price) noexcept {
+        if constexpr (side == OrderSide::BUY) {
+            _trailing_bid_price = price;
+        } else {
+            _trailing_ask_price = price;
+        }
+    }
+
+    template <OrderType type, OrderSide side, typename T>
+    constexpr void unlink_order(OrderIterator order_it, T level_it) noexcept {
+        levels<type, side>().unlink_order(order_it, level_it);
+    }
+
+    template <OrderType type, OrderSide side, typename T>
+    constexpr void link_order(OrderIterator order_it, T level_it) noexcept {
+        levels<type, side>().link_order_back(order_it, level_it);
+    }
 
     template <OrderType type, OrderSide side>
     constexpr void unlink_order(OrderIterator order_it) noexcept {
-        (void)order_it;
+        auto level = levels<type, side>().find(order_it->price());
+        return unlink_order<type, side>(order_it, level);
     }
 
     template <OrderType type, OrderSide side>
     constexpr void link_order(OrderIterator order_it) noexcept {
-        (void)order_it;
+        auto level = get_or_add_level<type, side>(order_it->price());
+        return link_order<type, side>(order_it, level);
     }
 
     template <OrderType type, OrderSide side>
@@ -335,7 +393,6 @@ public:
         clear_levels<OrderType::STOP>();
         clear_levels<OrderType::TRAILING_STOP>();
     }
-
 };
 
 }

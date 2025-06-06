@@ -56,6 +56,18 @@ public:
         orders.erase(it);
     }
 
+    constexpr auto unlink_order(iterator it) noexcept {
+        _visible_volume -= it->visible_quantity();
+        _hidden_volume -= it->hidden_quantity();
+        orders.unlink_node(it);
+    }
+
+    constexpr auto link_order_back(iterator it) noexcept {
+        _visible_volume += it->visible_quantity();
+        _hidden_volume += it->hidden_quantity();
+        orders.link_node_back(it);
+    }
+
     template <typename Iter>
     constexpr std::remove_reference_t<Iter> prev(Iter&& it) {
         return std::prev(it);
