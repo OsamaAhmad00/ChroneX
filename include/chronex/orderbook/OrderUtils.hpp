@@ -80,6 +80,8 @@ struct Price {
     constexpr Price operator-(const Price &other) const noexcept { return Price{ value - other.value }; }
 
     constexpr static Price invalid() noexcept { return Price { std::numeric_limits<decltype(value)>::max() }; }
+    constexpr static Price max() noexcept { return Price { std::numeric_limits<decltype(value)>::max() - 1 }; }
+    constexpr static Price min() noexcept { return Price { std::numeric_limits<decltype(value)>::min() }; }
 };
 
 struct Slippage : public Price {

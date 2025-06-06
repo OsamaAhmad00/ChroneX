@@ -536,7 +536,8 @@ private:
         //  it harder for the branch predictor to do its job
         auto& order = *order_it;
         if (int(!order.is_fully_filled()) & int(!order.is_ioc()) & int(!order.is_fok())) {
-            orderbook.template link_order<type, side>(order_it);
+            auto level_it = orderbook.template get_or_add_level<type, side>(order_it->price());
+            orderbook.template link_order<type, side>(order_it, level_it);
             return true;
         } else {
             event_handler().template on_remove_order<OrderType::LIMIT, side>(orderbook, order);
@@ -674,7 +675,7 @@ private:
 
         match_limit_order<side>(orderbook, *order_it);
 
-        try_link_limit_order<type, side>(orderbook, order_it);
+        try_link_limit_order<OrderType::LIMIT, side>(orderbook, order_it);
     }
 
     static constexpr Quantity calculate_matching_chain_quantity(Order& order, const Quantity needed, Quantity quantity) noexcept {
@@ -811,7 +812,7 @@ private:
                 event_handler().template on_execute_order<side>(orderbook, *order_it, price, quantity);
 
                 // TODO remove this and include it in the reduce order
-                orderbook.template update_last_matching_price<side>(price);
+                orderbook.template update_matching_price<side>(price);
 
                 orderbook.template execute_quantity<OrderType::LIMIT, side>(order_it, quantity, price);
 
@@ -827,8 +828,8 @@ private:
     template <OrderSide side>
     constexpr void update_trailing_stop_price(OrderBook& orderbook) noexcept {
         auto old_trailing_price = orderbook.template get_trailing_stop_price<side>();
-auto new_trailing_price = orderbook.template get_market_price<side>();
-        orderbook.template set_trailing_stop_price<side>(new_trailing_price);
+        auto new_trailing_price = orderbook.template get_market_trailing_stop_price<side>();
+        orderbook.template update_trailing_stop_price<side>(new_trailing_price);
         if constexpr (side == OrderSide::BUY) {
             if (new_trailing_price <= old_trailing_price) return;
         } else {
@@ -941,7 +942,7 @@ auto new_trailing_price = orderbook.template get_market_price<side>();
         execute_matching_chain<level_side>(orderbook, order_it->price(), chain_volume);
         event_handler().template on_execute_order<level_side>(orderbook, *order_it, order_it->price(), order_it->leaves_quantity());
         // TODO remove this
-        orderbook.template update_last_matching_price<level_side>(order_it->price());
+        orderbook.template update_matching_price<level_side>(order_it->price());
         // Doesn't remove, just marks it as fully filled
         order_it->execute_quantity(order_it->leaves_quantity());
     }

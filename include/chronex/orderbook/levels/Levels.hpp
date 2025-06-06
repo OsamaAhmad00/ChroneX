@@ -10,6 +10,10 @@
 
 namespace chronex {
 
+// TODO remove OrderType template param from here. At this point,
+//  we don't need this information. Reporting happens from the
+//  orderbook, and Levels and Level don't report anything as of now.
+
 template <
     concepts::Order Order,
     concepts::UniTypeComparator<Price> Comp,
@@ -84,6 +88,16 @@ public:
     template <OrderType type, OrderSide side>
     constexpr auto remove_order(OrderIterator order_it) {
         return remove_order<type, side>(order_it, this->find(order_it->price()));
+    }
+
+    constexpr auto link_order_back(OrderIterator order_it, iterator level_it) {
+        level_it->second.link_order_back(order_it);
+        ++_orders_count;
+    }
+
+    constexpr auto unlink_order(OrderIterator order_it, iterator level_it) {
+        level_it->second.unlink_order(order_it);
+        --_orders_count;
     }
 
     [[nodiscard]] constexpr size_t orders_count() const noexcept { return _orders_count; }

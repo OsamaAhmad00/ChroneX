@@ -117,6 +117,14 @@ class LinkedList : private Allocator<LinkedListNode<T>> {
         NodeType* _node;
     };
 
+public:
+
+    using value_type = T;
+    using iterator = Iterator<Node, NextFunc, PrevFunc>;
+    using const_iterator = Iterator<const Node, NextFunc, PrevFunc>;
+    using reverse_iterator = Iterator<Node, PrevFunc, NextFunc>;
+    using const_reverse_iterator = Iterator<const Node, PrevFunc, NextFunc>;
+
     template <typename Iter>
     constexpr void link_node(Iter pos, Node* new_node) noexcept {
         new_node->set_prev(pos.node()->prev());
@@ -127,6 +135,16 @@ class LinkedList : private Allocator<LinkedListNode<T>> {
         ++_size;
     }
 
+    template <typename Node>
+    constexpr void link_node_front(Node new_node) noexcept {
+        return link_node(begin(), new_node);
+    }
+
+    template <typename Node>
+    constexpr void link_node_back(Node new_node) noexcept {
+        return link_node(end(), new_node);
+    }
+
     constexpr void unlink_node(Node* node) noexcept {
         node->next()->set_prev(node->prev());
         node->prev()->set_next(node->next());
@@ -134,6 +152,15 @@ class LinkedList : private Allocator<LinkedListNode<T>> {
         // node->set_prev(nullptr);
         // node->set_next(nullptr);
         --_size;
+    }
+
+    template <typename Iter>
+    constexpr void link_node(Iter pos, iterator new_node) noexcept {
+        return link_node(pos, new_node.node());
+    }
+
+    constexpr void unlink_node(iterator new_node) noexcept {
+        return unlink_node(new_node.node());
     }
 
     constexpr void copy_back(const LinkedList& other) requires (std::is_copy_constructible_v<T>) {
@@ -160,14 +187,6 @@ class LinkedList : private Allocator<LinkedListNode<T>> {
         other.dummy_head().set_next(&other.dummy_tail());
         other._size = 0;
     }
-
-public:
-
-    using value_type = T;
-    using iterator = Iterator<Node, NextFunc, PrevFunc>;
-    using const_iterator = Iterator<const Node, NextFunc, PrevFunc>;
-    using reverse_iterator = Iterator<Node, PrevFunc, NextFunc>;
-    using const_reverse_iterator = Iterator<const Node, PrevFunc, NextFunc>;
 
     constexpr LinkedList() noexcept { dummy_head().set_next(&dummy_tail()); dummy_tail().set_prev(&dummy_head()); }
 
