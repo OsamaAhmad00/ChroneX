@@ -30,7 +30,12 @@ public:
     }
 
     constexpr auto execute_quantity(iterator it, Quantity quantity) {
-        assert(total_volume() <= it->leaves_quantity() && "Trying to execute more quantity than the level has left");
+        reduce_quantity(it, quantity);
+        it->increase_filled_quantity(quantity);
+    }
+
+    constexpr auto reduce_quantity(iterator it, Quantity quantity) {
+        assert(total_volume() >= quantity && "Trying to reduce more quantity than the level has");
 
         if (quantity == it->leaves_quantity()) {
             return remove_order(it);

@@ -21,8 +21,7 @@ struct Order {
         const Price stop_price,
         const Price initial_stop_price,
         const Price slippage,
-        const TrailingOffset trailing_distance,
-        const TrailingOffset trailing_step
+        const TrailingDistance trailing_distance
     ) noexcept :
         _id(id),
         _symbol_id(symbol_id),
@@ -36,8 +35,7 @@ struct Order {
         _stop_price(stop_price),
         _initial_stop_price(initial_stop_price),
         _slippage(slippage),
-        _trailing_distance(trailing_distance),
-        _trailing_step(trailing_step)
+        _trailing_distance(trailing_distance)
     {
 
     }
@@ -84,8 +82,7 @@ struct Order {
     [[nodiscard]] constexpr Price slippage() const noexcept { return _slippage; }
     [[nodiscard]] constexpr bool has_slippage() const noexcept { return slippage() != Price { 0 }; }
 
-    [[nodiscard]] constexpr TrailingOffset trailing_distance() const noexcept { return _trailing_distance; }
-    [[nodiscard]] constexpr TrailingOffset trailing_step() const noexcept { return _trailing_step; }
+    [[nodiscard]] constexpr TrailingDistance trailing_distance() const noexcept { return _trailing_distance; }
 
     [[nodiscard]] bool is_valid() const noexcept;
 
@@ -111,6 +108,10 @@ struct Order {
 
     constexpr void execute_quantity(const Quantity quantity) noexcept {
         reduce_quantity(quantity);
+        increase_filled_quantity(quantity);
+    }
+
+    constexpr void increase_filled_quantity(const Quantity quantity) noexcept {
         _filled_quantity += quantity;
     }
 
@@ -156,8 +157,7 @@ private:
     //  as 0 by default allows us to always add/subtract the slippage without checking the order type.
     Price _slippage = Price { 0 };
 
-    TrailingOffset _trailing_distance = TrailingOffset::invalid();
-    TrailingOffset _trailing_step = TrailingOffset::invalid();
+    TrailingDistance _trailing_distance = TrailingDistance::invalid();
 };
 
 }
