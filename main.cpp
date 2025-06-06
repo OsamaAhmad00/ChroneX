@@ -14,8 +14,7 @@ auto create_order(uint64_t id) {
         chronex::Price { 100 },
         chronex::Price { 100 },
         chronex::Price { 0 },
-        chronex::TrailingOffset::from_price(chronex::Price { 100 }),
-        chronex::TrailingOffset::from_price(chronex::Price { 100 })
+        chronex::TrailingDistance::from_price(chronex::Price { 100 }, chronex::Price { 100 } ),
     };
 }
 

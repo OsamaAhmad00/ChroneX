@@ -15,8 +15,7 @@ bool Order::is_valid() const noexcept {
     assert(stop_price() != Price::invalid() && "Order stop price must be valid!");
     assert(initial_stop_price() != Price::invalid() && "Order initial stop price must be valid!");
     assert(slippage() != Price::invalid() && "Order slippage must be valid!");
-    assert(trailing_distance() != TrailingOffset::invalid() && "Order trailing distance must be valid!");
-    assert(trailing_step() != TrailingOffset::invalid() && "Order trailing step must be valid!");
+    assert(trailing_distance() != TrailingDistance::invalid() && "Order trailing distance must be valid!");
     assert(initial_quantity() == leaves_quantity() + filled_quantity() && "Order total quantity must be equal to leaves quantity plus filled quantity!");
     assert(leaves_quantity() > Quantity { 0 } && "Order leaves quantity must be greater than zero!");
 
@@ -40,16 +39,18 @@ bool Order::is_valid() const noexcept {
 
     if (is_trailing_stop_order() || is_trailing_stop_limit_order())
     {
-        assert((trailing_distance().value != 0) &&
+        auto distance = trailing_distance().raw_distance();
+        auto step = trailing_distance().raw_step();
+        assert(distance != 0 &&
             "Trailing stop order must have non zero distance to the market!");
 
-        if (trailing_distance().value > 0) {
-            assert(trailing_step().value >= 0 && trailing_step() < trailing_distance() &&
+        if (distance > 0) {
+            assert(step >= 0 && step < distance &&
                 "Trailing step must be less than trailing distance!");
         } else {
-            assert(trailing_distance().value <= -1 && trailing_distance().value >= -1000 &&
+            assert(distance <= -1 && distance >= -1000 &&
                 "Trailing percentage distance must be in the range [0.01, 100%] (from -1 down to -10000)!");
-            assert(trailing_step().value <= 0 && trailing_step() > trailing_distance() &&
+            assert(step <= 0 && step > distance &&
                 "Trailing step must be less than trailing distance!");
         }
     }

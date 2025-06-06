@@ -498,25 +498,6 @@ private:
     // }
 
     template <OrderSide side>
-    static constexpr auto& get_side(OrderBook& orderbook) noexcept {
-        return orderbook.template levels<OrderType::LIMIT, side>();
-    }
-
-    template <OrderSide side>
-    static constexpr auto& get_opposite_side(OrderBook& orderbook) noexcept {
-        return get_side<opposite_side<side>()>(orderbook);
-    }
-
-    template <OrderSide side>
-    static constexpr auto opposite_side() noexcept {
-        if constexpr (side == OrderSide::BUY) {
-            return OrderSide::SELL;
-        } else {
-            return OrderSide::BUY;
-        }
-    }
-
-    template <OrderSide side>
     constexpr void match_market_order(OrderBook& orderbook, Order& order) noexcept {
         // TODO Overwriting the price takes away the
         //  ability to have historical data about the
@@ -846,7 +827,7 @@ private:
     template <OrderSide side>
     constexpr void update_trailing_stop_price(OrderBook& orderbook) noexcept {
         auto old_trailing_price = orderbook.template get_trailing_stop_price<side>();
-        auto new_trailing_price = orderbook.template get_market_price<side>();
+auto new_trailing_price = orderbook.template get_market_price<side>();
         orderbook.template set_trailing_stop_price<side>(new_trailing_price);
         if constexpr (side == OrderSide::BUY) {
             if (new_trailing_price <= old_trailing_price) return;
