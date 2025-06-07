@@ -110,14 +110,13 @@ public:
         add_order_to_map(id, order_it);
     }
 
-    template <OrderType type, OrderSide side>
-    constexpr auto remove_order(OrderIterator order_it) {
+    template <OrderType type, OrderSide side, typename T>
+    constexpr auto remove_order(OrderIterator order_it, T level_it) {
         auto id = order_it->id();
 
         assert(orders().contains(id) && "Order with the same ID doesn't exists in the order book");
 
         auto& levels = this->template levels<type, side>();
-        auto level_it = levels.find(order_it->price());
         assert(level_it != levels.end());
 
         if constexpr (should_report()) {
@@ -140,112 +139,6 @@ public:
 
         remove_order_from_map(id);
     }
-
-    template <LevelsType type>
-    constexpr auto remove_order(OrderId id) noexcept {
-        auto order_it = orders().find(id);
-        if (order_it->side() == OrderSide::BUY) return this->remove_order<type, OrderSide::BUY>(order_it);
-        return this->remove_order<type, OrderSide::SELL>(order_it);
-    }
-
-    template <OrderType type, OrderSide side>
-    constexpr void reduce_order(OrderIterator order_it, const Quantity quantity) noexcept {
-        (void)order_it;
-        (void)quantity;
-    }
-
-    template <OrderType type, OrderSide side>
-    constexpr void modify_order(Order& order, const Quantity quantity, const Price price, const bool mitigate) noexcept {
-        (void)order;
-        (void)quantity;
-        (void)price;
-        (void)mitigate;
-    }
-
-    template <OrderType type, OrderSide side, typename T>
-    constexpr void replace_order(OrderIterator order_it, T&& new_order) noexcept {
-        // Replace atomically. Since the matching engine is single-threaded,
-        //  it can do it by performing remove then add, without worrying
-        //  about other operations happening between remove and add
-        // TODO have the event handler report replacement instead of removal and addition
-        // TODO extract the duplication between this and reduce_order, modify_order, remove_order, and replace_order
-        (void)order_it;
-        (void)new_order;
-    }
-
-    [[nodiscard]] constexpr auto& symbol() const noexcept { return _symbol; }
-
-    [[nodiscard]] constexpr auto& symbol_id() const noexcept { return symbol().id; }
-
-    OrderBook(const OrderBook&) = default;
-    OrderBook(OrderBook&&) = default;
-
-    OrderBook& operator=(const OrderBook&) = default;
-    OrderBook& operator=(OrderBook&&) = default;
-
-    ~OrderBook() { clear(); }
-
-private:
-
-    constexpr void add_order_to_map(OrderId id, OrderIterator order_it) noexcept {
-        assert(!orders().contains(id) && "Order with the same ID already exists in the order book");
-        orders()[id] = order_it;
-    }
-
-    constexpr void remove_order_from_map(OrderId id) noexcept {
-        // TODO later, you might want to append the order somewhere
-        //  else to keep track of history instead of getting rid of it
-        assert(orders().contains(id) && "Order with the given ID doesn't exists in the order book");
-        orders().erase(id);
-    }
-
-    constexpr auto& orders() noexcept { return *_orders; }
-
-    [[nodiscard]] constexpr static bool should_report() noexcept {
-        // Use this to help the compiler determine at compile-time that
-        //  there is no need to call the event handler. Even though it
-        //  will probably figure it out, since we're only storing a pointer
-        //  to the handler, there is a possibility that it won't.
-        // TODO figure out if this is actually useful
-        return !std::is_same_v<EventHandler, handlers::NullEventHandler>;
-    }
-
-    constexpr auto& event_handler() const noexcept {
-        assert(_event_handler != nullptr && "Event handler is not set!");
-        return *_event_handler;
-    }
-
-    template <OrderSide side>
-    [[nodiscard]] constexpr Price get_price(const Price price) const noexcept {
-        if constexpr (side == OrderSide::BUY) {
-            auto best_price = bids().is_empty() ? Price::min() : bids().begin()->first;
-            return std::max(price, best_price);
-        } else {
-            auto best_price = asks().is_empty() ? Price::max() : asks().begin()->first;
-            return std::min(price, best_price);
-        }
-    }
-
-    PriceLevels       <Order> _price_levels;
-    StopLevels        <Order> _stop_levels;
-    TrailingStopLevels<Order> _trailing_stop_levels;
-
-    HashMap<OrderId, OrderIterator>* _orders { };
-
-    Price _last_bid_price = Price::min();
-    Price _last_ask_price = Price::max();
-
-    Price _matching_bid_price = Price::min();
-    Price _matching_ask_price = Price::max();
-
-    Price _trailing_bid_price = Price::min();
-    Price _trailing_ask_price = Price::max();
-
-    Symbol _symbol { };
-
-    EventHandler* _event_handler = nullptr;
-
-public:
 
     template <OrderType type, OrderSide side>
     constexpr void execute_quantity(OrderIterator order_it, const Quantity quantity, const Price price) noexcept {
@@ -393,6 +286,78 @@ public:
         clear_levels<OrderType::STOP>();
         clear_levels<OrderType::TRAILING_STOP>();
     }
+
+    [[nodiscard]] constexpr auto& symbol() const noexcept { return _symbol; }
+
+    [[nodiscard]] constexpr auto& symbol_id() const noexcept { return symbol().id; }
+
+    OrderBook(const OrderBook&) = default;
+    OrderBook(OrderBook&&) = default;
+
+    OrderBook& operator=(const OrderBook&) = default;
+    OrderBook& operator=(OrderBook&&) = default;
+
+    ~OrderBook() { clear(); }
+
+private:
+
+    template <OrderSide side>
+    [[nodiscard]] constexpr Price get_price(const Price price) const noexcept {
+        if constexpr (side == OrderSide::BUY) {
+            auto best_price = bids().is_empty() ? Price::min() : bids().begin()->first;
+            return std::max(price, best_price);
+        } else {
+            auto best_price = asks().is_empty() ? Price::max() : asks().begin()->first;
+            return std::min(price, best_price);
+        }
+    }
+
+    constexpr void add_order_to_map(OrderId id, OrderIterator order_it) noexcept {
+        assert(!orders().contains(id) && "Order with the same ID already exists in the order book");
+        orders()[id] = order_it;
+    }
+
+    constexpr void remove_order_from_map(OrderId id) noexcept {
+        // TODO later, you might want to append the order somewhere
+        //  else to keep track of history instead of getting rid of it
+        assert(orders().contains(id) && "Order with the given ID doesn't exists in the order book");
+        orders().erase(id);
+    }
+
+    constexpr auto& orders() noexcept { return *_orders; }
+
+    [[nodiscard]] constexpr static bool should_report() noexcept {
+        // Use this to help the compiler determine at compile-time that
+        //  there is no need to call the event handler. Even though it
+        //  will probably figure it out, since we're only storing a pointer
+        //  to the handler, there is a possibility that it won't.
+        // TODO figure out if this is actually useful
+        return !std::is_same_v<EventHandler, handlers::NullEventHandler>;
+    }
+
+    constexpr auto& event_handler() const noexcept {
+        assert(_event_handler != nullptr && "Event handler is not set!");
+        return *_event_handler;
+    }
+
+    PriceLevels       <Order> _price_levels;
+    StopLevels        <Order> _stop_levels;
+    TrailingStopLevels<Order> _trailing_stop_levels;
+
+    HashMap<OrderId, OrderIterator>* _orders;
+
+    Symbol _symbol;
+
+    EventHandler* _event_handler;
+
+    Price _last_bid_price = Price::min();
+    Price _last_ask_price = Price::max();
+
+    Price _matching_bid_price = Price::min();
+    Price _matching_ask_price = Price::max();
+
+    Price _trailing_bid_price = Price::min();
+    Price _trailing_ask_price = Price::max();
 };
 
 }

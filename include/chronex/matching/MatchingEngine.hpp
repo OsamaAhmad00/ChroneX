@@ -30,6 +30,8 @@ class MatchingEngine {
 
     // TODO mark methods that allocate noexcept conditionally, conditioned that the allocation does throw or not
 
+    // TODO don't take forwarding reference for orders, in which the function should own the order
+
     enum class StopOrdersAction {
         TRIGGERED,
         NOT_TRIGGERED
@@ -96,23 +98,23 @@ public:
         //  and the type information should be present by now.
         switch (order.type()) {
             case OrderType::MARKET:
-                return add_order<side, OrderType::MARKET>(std::forward<T>(order));
+                return add_order<OrderType::MARKET, side>(std::forward<T>(order));
             case OrderType::LIMIT:
-                return add_order<side, OrderType::LIMIT>(std::forward<T>(order));
+                return add_order<OrderType::LIMIT, side>(std::forward<T>(order));
             case OrderType::STOP:
-                return add_order<side, OrderType::STOP>(std::forward<T>(order));
+                return add_order<OrderType::STOP, side>(std::forward<T>(order));
             case OrderType::TRAILING_STOP:
-                return add_order<side, OrderType::TRAILING_STOP>(std::forward<T>(order));
+                return add_order<OrderType::TRAILING_STOP, side>(std::forward<T>(order));
             case OrderType::STOP_LIMIT:
-                return add_order<side, OrderType::STOP_LIMIT>(std::forward<T>(order));
+                return add_order<OrderType::STOP_LIMIT, side>(std::forward<T>(order));
             case OrderType::TRAILING_STOP_LIMIT:
-                return add_order<side, OrderType::TRAILING_STOP_LIMIT>(std::forward<T>(order));
+                return add_order<OrderType::TRAILING_STOP_LIMIT, side>(std::forward<T>(order));
             default:
                 assert(false && "Wrong order type to use here");
         }
     }
 
-    template <OrderSide side, OrderType type, concepts::Order T>
+    template <OrderType type, OrderSide side, concepts::Order T>
     constexpr void add_order(T&& order) {
         assert(order.is_valid() && "Order is invalid");
 
@@ -147,8 +149,8 @@ public:
         perform_post_order_processing(orderbook);
     }
 
-    template <OrderSide side, concepts::Order T>
-    constexpr void add_limit_order(T&& order) {
+    template <OrderSide side>
+    constexpr void add_limit_order(Order order) {
         auto& orderbook = orderbook_at(order.symbol_id());
 
         event_handler().template on_add_order<OrderType::LIMIT, side>(orderbook, order);
@@ -162,7 +164,7 @@ public:
             match_limit_order<side>(orderbook, order);
         }
 
-        try_add_limit_order<OrderType::LIMIT, side>(orderbook, std::forward<T>(order));
+        try_add_limit_order<OrderType::LIMIT, side>(orderbook, std::move(order));
 
         // TODO perform this only if the order is added?
         perform_post_order_processing(orderbook);
@@ -210,33 +212,85 @@ public:
         perform_post_order_processing(orderbook);
     }
 
-# define ADD_ORDERBOOK_OP_PROXY(OP_NAME) \
+    template <OrderType type, OrderSide side, typename T>
+    constexpr void remove_order(OrderBook& orderbook, OrderIterator order_it, T level_it) noexcept {
+        // This will do the reporting and the removal of the orders from the hash map if needed
+        orderbook.template remove_order<type, side>(order_it, level_it);
+    }
+
+    template <OrderType type, OrderSide side, typename T>
+    constexpr void reduce_order(OrderBook& orderbook, OrderIterator order_it, T level_it, const Quantity quantity) noexcept {
+        if (quantity == order_it->leaves_quantity()) {
+            return remove_order<type, side>(orderbook, order_it, level_it);
+        }
+        level_it->second.reduce_quantity(order_it, quantity);
+
+        if (is_matching_enabled())
+            match(orderbook);
+
+        perform_post_order_processing(orderbook);
+    }
+
+    template <OrderType type, OrderSide side, typename T>
+    constexpr void modify_order(OrderBook& orderbook, OrderIterator order_it, T level_it, const Quantity leaves_quantity, const Price price, const bool mitigate) noexcept {
+        level_it->unlink_order(order_it);
+        order_it->set_leaves_quantity(leaves_quantity);
+        order_it->set_price(price);
+
+        // In-Flight Mitigation (IFM)
+        if (mitigate) {
+            if (leaves_quantity > order_it->filled_quantity()) {
+                order_it->set_leaves_quantity(leaves_quantity - order_it->filled_quantity());
+            } else {
+                order_it->set_leaves_quantity(Quantity{ 0 });
+            }
+        }
+
+        if (order_it->is_fully_filled()) {
+            // Remove
+            // TODO Is that all we need?
+            order_it->free();
+        } else {
+            add_order<type, side>(std::move(*order_it));
+        }
+
+        // TODO do we need this here or can we perform it only if the order is not removed?
+        perform_post_order_processing(orderbook);
+    }
+
+    template <OrderType type, OrderSide side, typename T>
+    constexpr void replace_order(OrderBook& orderbook, OrderIterator order_it, T level_it, Order new_order) noexcept {
+        // Replace atomically. Since the matching engine is single-threaded,
+        //  it can do it by performing remove then add, without worrying
+        //  about other operations happening between remove and add
+        // TODO have the event handler report replacement instead of removal and addition
+        remove_order<type, side>(orderbook, order_it, level_it);
+        // TODO pass the orderbook and possibly the level
+        add_order<type, side>(std::move(new_order));
+    }
+
+# define ADD_BY_ID_METHOD(OP_NAME) \
     template <typename... Args>                                                                                 \
     constexpr void OP_NAME(const OrderId id, Args&&... args) noexcept {                                         \
         auto [order_it, orderbook] = get_order_and_orderbook(id);                                               \
                                                                                                                 \
         auto func = [&] <OrderType type, OrderSide side, typename... Args2> (Args2&&... args2) {                \
-            OP_NAME<type, side>(orderbook.get(), order_it, std::forward<Args2>(args2)...);                      \
+        auto level_it = orderbook.get().template get_or_add_level<type, side>(order_it->price());               \
+            OP_NAME<type, side>(orderbook.get(), order_it, level_it, std::forward<Args2>(args2)...);            \
         };                                                                                                      \
                                                                                                                 \
         resolve_type_and_side_then_call(*order_it, func, std::forward<Args>(args)...);                          \
                                                                                                                 \
         perform_post_order_processing(orderbook);                                                               \
     }                                                                                                           \
-                                                                                                                \
-    template <OrderType type, OrderSide side, typename... Args>                                                 \
-    constexpr void OP_NAME(OrderBook& orderbook, OrderIterator order_it, Args&&... args) noexcept {             \
-        /* This will do the reporting and the removal of the orders from the hash map if needed */              \
-        orderbook.template OP_NAME<type, side>(order_it, std::forward<Args>(args)...);                          \
-    }                                                                                                           \
 
-    ADD_ORDERBOOK_OP_PROXY(reduce_order)
+    ADD_BY_ID_METHOD(remove_order);
 
-    ADD_ORDERBOOK_OP_PROXY(modify_order)
+    ADD_BY_ID_METHOD(reduce_order);
 
-    ADD_ORDERBOOK_OP_PROXY(remove_order)
+    ADD_BY_ID_METHOD(modify_order);
 
-    ADD_ORDERBOOK_OP_PROXY(replace_order)
+    ADD_BY_ID_METHOD(replace_order);
 
     constexpr void execute_order(const OrderId id, const Quantity quantity, Price price) noexcept {
         return execute_order<false>(id, quantity, price);
@@ -322,8 +376,10 @@ private:
         while (true) {
             while (int(!orderbook.bids().is_empty()) & int(!orderbook.asks().is_empty())) {
                 // Maintain price-time priority
-                auto& [bid_price, bid_level] = *orderbook.bids().best();
-                auto& [ask_price, ask_level] = *orderbook.asks().best();
+                auto bid_level_it = orderbook.bids().begin();
+                auto ask_level_it = orderbook.asks().begin();
+                auto& [bid_price, bid_level] = *bid_level_it;
+                auto& [ask_price, ask_level] = *ask_level_it;
 
                 // No orders to match
                 if (bid_price < ask_price) break;
@@ -355,8 +411,8 @@ private:
 
                 // TODO make sure of the OrderType template param
                 // At this point, we must've had executed at least one order. Check for stop orders
-                try_trigger_stop_orders<OrderType::STOP, OrderSide::BUY>(orderbook, bid_level, bid_price);
-                try_trigger_stop_orders<OrderType::STOP, OrderSide::SELL>(orderbook, ask_level, ask_price);
+                try_trigger_stop_orders<OrderType::STOP, OrderSide::BUY>(orderbook, bid_level_it, bid_price);
+                try_trigger_stop_orders<OrderType::STOP, OrderSide::SELL>(orderbook, ask_level_it, ask_price);
             }
 
             // Trailing stop orders modify the stop price, and this is not for free.
@@ -414,6 +470,10 @@ private:
                 auto other_it = level.begin();
                 auto& other = *other_it;
 
+                // Either this order is fully "executing" or the target order `order` is executing.
+                // It can happen that both of them are fully executed if the leaves_quantity of them
+                //  are equal. Otherwise, the non-executing order will just be reduced (execute partially)
+
                 Quantity quantity = Quantity::invalid();
                 if (order.leaves_quantity() < other.leaves_quantity()) {
                     if (other.is_aon()) {
@@ -445,57 +505,6 @@ private:
         // TODO remove this
         order = std::move(*order_it);
     }
-    //
-    // template <OrderSide order_side, typename T>
-    // constexpr void match_order_with_level(OrderBook& orderbook, OrderIterator order_it, T& level) noexcept {
-    //     // TODO refactor this method
-    //
-    //     constexpr auto opposite = opposite_side<order_side>();
-    //
-    //     // TODO should we traverse through the next pointer instead of always getting the best?
-    //     while (!level.is_empty()) {
-    //         // Either this order is fully "executing" or the target order `order` is executing.
-    //         // It can happen that both of them are fully executed if the leaves_quantity of them
-    //         //  are equal. Otherwise, the non-executing order will just be reduced (execute partially)
-    //         auto executing_it = level.begin();
-    //
-    //         // Special case for All-Or-None orders. The case of `order.is_aon()` is handled before
-    //         //  calling this function, but we must check the other end (executing_it) as well.
-    //         // No short-circuit behavior
-    //
-    //         auto order_has_less_quantity = order_it->leaves_quantity() < executing_it->leaves_quantity();
-    //
-    //         if (order_has_less_quantity) {
-    //             if (executing_it->is_aon()) {
-    //                 // No more orders can be matched for now, respecting the time priority
-    //                 return;
-    //             } else {
-    //                 std::swap(order_it, executing_it);
-    //             }
-    //         }
-    //
-    //         // auto price = executing_it->price();  // TODO or order_it->price()?
-    //
-    //         Quantity quantity = [&] {
-    //             if (order_has_less_quantity) {
-    //                 // `order` is the actual executing order
-    //                 event_handler().template on_match_order<order_side, opposite>(orderbook, *order_it, *executing_it);
-    //                 return order_it->leaves_quantity();
-    //             }
-    //
-    //             event_handler().template on_match_order<opposite, order_side>(orderbook, *executing_it, *order_it);
-    //             return executing_it->leaves_quantity();
-    //         }();
-    //
-    //         orderbook.template execute_quantity<OrderType::LIMIT, order_side>(order_it    , quantity);
-    //         orderbook.template execute_quantity<OrderType::LIMIT, opposite>(executing_it, quantity);
-    //
-    //         if (order_has_less_quantity) {
-    //             // The order has executed successfully
-    //             return;
-    //         }
-    //     }
-    // }
 
     template <OrderSide side>
     constexpr void match_market_order(OrderBook& orderbook, Order& order) noexcept {
@@ -528,7 +537,7 @@ private:
         }
     }
 
-    template <OrderType type, OrderSide side>
+    template <OrderSide side>
     constexpr bool try_link_limit_order(OrderBook& orderbook, OrderIterator order_it) {
         // TODO refactor the duplication between this and try_add_limit_order
         // No need for short-circuit behavior here because the checks are simple, and
@@ -536,8 +545,8 @@ private:
         //  it harder for the branch predictor to do its job
         auto& order = *order_it;
         if (int(!order.is_fully_filled()) & int(!order.is_ioc()) & int(!order.is_fok())) {
-            auto level_it = orderbook.template get_or_add_level<type, side>(order_it->price());
-            orderbook.template link_order<type, side>(order_it, level_it);
+            auto level_it = orderbook.template get_or_add_level<OrderType::LIMIT, side>(order_it->price());
+            orderbook.template link_order<OrderType::LIMIT, side>(order_it, level_it);
             return true;
         } else {
             event_handler().template on_remove_order<OrderType::LIMIT, side>(orderbook, order);
@@ -562,8 +571,9 @@ private:
         // TODO rename this function
         auto& levels = orderbook.template bids<type>();
         if (levels.is_empty()) return StopOrdersAction::NOT_TRIGGERED;
-        auto& [price, level] = *levels.begin();
-        return try_trigger_stop_orders<type, side>(orderbook, level, price, stop_price);
+        auto level_it = levels.begin();
+        auto price = level_it->first;
+        return try_trigger_stop_orders<type, side>(orderbook, level_it, price, stop_price);
     }
 
     template <OrderSide side>
@@ -596,15 +606,17 @@ private:
     }
 
     template <OrderType type, OrderSide level_side, typename T>
-    constexpr StopOrdersAction try_trigger_stop_orders(OrderBook& orderbook, T& level, const Price level_price) noexcept {
+    constexpr StopOrdersAction try_trigger_stop_orders(OrderBook& orderbook, T level_it, const Price level_price) noexcept {
         constexpr auto opposite = opposite_side<level_side>();
         auto stop_price = orderbook.template get_market_price<opposite>();
-        return try_trigger_stop_orders<type, level_side>(orderbook, level, level_price, stop_price);
+        return try_trigger_stop_orders<type, level_side>(orderbook, level_it, level_price, stop_price);
     }
 
     template <OrderType type, OrderSide level_side, typename T>
-    constexpr StopOrdersAction try_trigger_stop_orders(OrderBook& orderbook, T& level, const Price level_price, const Price stop_price) noexcept {
+    constexpr StopOrdersAction try_trigger_stop_orders(OrderBook& orderbook, T level_it, const Price level_price, const Price stop_price) noexcept {
         bool should_trigger = prices_cross<level_side>(level_price, stop_price);
+
+        auto& level = level_it->second;
 
         if (int(!should_trigger) | int(level.is_empty())) return StopOrdersAction::NOT_TRIGGERED;
 
@@ -613,16 +625,16 @@ private:
             auto order_it = level.begin();
             switch (order_it->type()) {
                 case OrderType::STOP:
-                    trigger_stop_order<OrderType::STOP, level_side>(orderbook, order_it);
+                    trigger_stop_order<OrderType::STOP, level_side>(orderbook, order_it, level_it);
                     break;
                 case OrderType::TRAILING_STOP:
-                    trigger_stop_order<OrderType::TRAILING_STOP, level_side>(orderbook, order_it);
+                    trigger_stop_order<OrderType::TRAILING_STOP, level_side>(orderbook, order_it, level_it);
                     break;
                 case OrderType::STOP_LIMIT:
-                    trigger_stop_limit_order<OrderType::STOP_LIMIT, level_side>(orderbook, order_it);
+                    trigger_stop_limit_order<OrderType::STOP_LIMIT, level_side>(orderbook, order_it, level_it);
                     break;
                 case OrderType::TRAILING_STOP_LIMIT:
-                    trigger_stop_limit_order<OrderType::TRAILING_STOP_LIMIT, level_side>(orderbook, order_it);
+                    trigger_stop_limit_order<OrderType::TRAILING_STOP_LIMIT, level_side>(orderbook, order_it, level_it);
                     break;
                 default:
                     assert(false && "Unsupported order type");
@@ -643,8 +655,8 @@ private:
         return StopOrdersAction::TRIGGERED;
     }
 
-    template <OrderType type, OrderSide side>
-    constexpr void trigger_stop_order(OrderBook& orderbook, OrderIterator order_it) noexcept {
+    template <OrderType type, OrderSide side, typename T>
+    constexpr void trigger_stop_order(OrderBook& orderbook, OrderIterator order_it, T level_it) noexcept {
         order_it->template mark_triggered<type>();
         // TODO remove this and have a way to handle triggered stop orders accordingly
         if (order_it->time_in_force() != TimeInForce::FOK) {
@@ -661,13 +673,13 @@ private:
         // Remove the order from its stop order level and create a market
         event_handler().template on_remove_order<type, side>(orderbook, *order_it);
         orders().erase(order_it->id());
-        orderbook.template remove_order<type, side>(order_it);
+        orderbook.template remove_order<type, side>(order_it, level_it);
     }
 
-    template <OrderType type, OrderSide side>
-    constexpr void trigger_stop_limit_order(OrderBook& orderbook, OrderIterator order_it) noexcept {
+    template <OrderType type, OrderSide side, typename T>
+    constexpr void trigger_stop_limit_order(OrderBook& orderbook, OrderIterator order_it, T level_it) noexcept {
         // Unlink the order from its stop order level and link it into a limit order level
-        orderbook.template unlink_order<type, side>(order_it);
+        orderbook.template unlink_order<type, side>(order_it, level_it);
 
         order_it->template mark_triggered<type>();
 
@@ -675,7 +687,7 @@ private:
 
         match_limit_order<side>(orderbook, *order_it);
 
-        try_link_limit_order<OrderType::LIMIT, side>(orderbook, order_it);
+        try_link_limit_order<side>(orderbook, order_it);
     }
 
     static constexpr Quantity calculate_matching_chain_quantity(Order& order, const Quantity needed, Quantity quantity) noexcept {
