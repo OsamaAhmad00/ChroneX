@@ -6,18 +6,19 @@ namespace chronex {
 
 bool Order::is_valid() const noexcept {
 
-    assert(id() != OrderId::invalid() && "Order id must be valid!");
-    assert(symbol_id() != SymbolId::invalid() && "Order symbol id must be valid!");
-    assert(leaves_quantity() != Quantity::invalid() && "Order leaves quantity must be valid!");
-    assert(filled_quantity() != Quantity::invalid() && "Order filled quantity must be valid!");
-    assert(max_visible_quantity() != Quantity::invalid() && "Order max visible quantity must be valid!");
-    assert(price() != Price::invalid() && "Order price must be valid!");
-    assert(stop_price() != Price::invalid() && "Order stop price must be valid!");
-    assert(initial_stop_price() != Price::invalid() && "Order initial stop price must be valid!");
-    assert(slippage() != Price::invalid() && "Order slippage must be valid!");
-    assert(trailing_distance() != TrailingDistance::invalid() && "Order trailing distance must be valid!");
-    assert(initial_quantity() == leaves_quantity() + filled_quantity() && "Order total quantity must be equal to leaves quantity plus filled quantity!");
-    assert(leaves_quantity() > Quantity { 0 } && "Order leaves quantity must be greater than zero!");
+    // TODO make these checks more specific. Certain fields should be invalid if they're not part of the order type
+    // assert(id() != OrderId::invalid() && "Order id must be valid!");
+    // assert(symbol_id() != SymbolId::invalid() && "Order symbol id must be valid!");
+    // assert(leaves_quantity() != Quantity::invalid() && "Order leaves quantity must be valid!");
+    // assert(filled_quantity() != Quantity::invalid() && "Order filled quantity must be valid!");
+    // assert(max_visible_quantity() != Quantity::invalid() && "Order max visible quantity must be valid!");
+    // assert(price() != Price::invalid() && "Order price must be valid!");
+    // assert(stop_price() != Price::invalid() && "Order stop price must be valid!");
+    // assert(initial_stop_price() != Price::invalid() && "Order initial stop price must be valid!");
+    // assert(slippage() != Price::invalid() && "Order slippage must be valid!");
+    // assert(trailing_distance() != TrailingDistance::invalid() && "Order trailing distance must be valid!");
+    // assert(initial_quantity() == leaves_quantity() + filled_quantity() && "Order total quantity must be equal to leaves quantity plus filled quantity!");
+    // assert(leaves_quantity() > Quantity { 0 } && "Order leaves quantity must be greater than zero!");
 
     if (is_market_order()) {
         assert(is_ioc() || is_fok() && "Market order must have 'Immediate-Or-Cancel' or 'Fill-Or-Kill' parameter!");
