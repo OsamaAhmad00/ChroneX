@@ -1,21 +1,12 @@
 #include <chronex/matching/MatchingEngine.hpp>
 
 auto create_order(uint64_t id) {
-    return chronex::Order {
-        chronex::OrderId { id },
-        chronex::SymbolId { 1 },
-        chronex::OrderType::LIMIT,
-        chronex::OrderSide::BUY,
-        chronex::TimeInForce::FOK,
-        chronex::Quantity { 100 },
-        chronex::Quantity { 0 },
-        chronex::Quantity { 100 },
-        chronex::Price { 100 },
-        chronex::Price { 100 },
-        chronex::Price { 100 },
-        chronex::Price { 0 },
-        chronex::TrailingDistance::from_price(chronex::Price { 100 }, chronex::Price { 100 } ),
-    };
+    return chronex::Order::buy_limit(
+        id,
+        1,
+        100,
+        100
+    );
 }
 
 int main() {

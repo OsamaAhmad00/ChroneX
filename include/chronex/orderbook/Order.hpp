@@ -6,40 +6,6 @@
 namespace chronex {
 
 struct Order {
-
-    // TODO make it private after testing
-    Order(
-        const OrderId id,
-        const SymbolId symbol_id,
-        const OrderType type,
-        const OrderSide side,
-        const TimeInForce time_in_force,
-        const Quantity leaves_quantity,
-        const Quantity filled_quantity,
-        const Quantity max_visible_quantity,
-        const Price price,
-        const Price stop_price,
-        const Price initial_stop_price,
-        const Price slippage,
-        const TrailingDistance trailing_distance
-    ) noexcept :
-        _id(id),
-        _symbol_id(symbol_id),
-        _type(type),
-        _side(side),
-        _time_in_force(time_in_force),
-        _leaves_quantity(leaves_quantity),
-        _filled_quantity(filled_quantity),
-        _max_visible_quantity(max_visible_quantity),
-        _price(price),
-        _stop_price(stop_price),
-        _initial_stop_price(initial_stop_price),
-        _slippage(slippage),
-        _trailing_distance(trailing_distance)
-    {
-
-    }
-
     [[nodiscard]] constexpr OrderId id() const noexcept { return _id; }
 
     [[nodiscard]] SymbolId symbol_id() const noexcept { return _symbol_id; }
@@ -80,7 +46,7 @@ struct Order {
     [[nodiscard]] constexpr Price initial_stop_price() const noexcept { return _initial_stop_price; }
 
     [[nodiscard]] constexpr Price slippage() const noexcept { return _slippage; }
-    [[nodiscard]] constexpr bool has_slippage() const noexcept { return slippage() != Price { 0 }; }
+    [[nodiscard]] constexpr bool has_slippage() const noexcept { return slippage() != Price::invalid(); }
 
     [[nodiscard]] constexpr TrailingDistance trailing_distance() const noexcept { return _trailing_distance; }
 
@@ -133,7 +99,101 @@ struct Order {
 
     ~Order() noexcept = default;
 
+    // TODO extract common parts, and arrange the parameters and args in a nice way
+    constexpr static Order market(uint64_t id, uint32_t symbol_id, OrderSide side, uint64_t quantity, uint64_t slippage = Price::max().value) noexcept {
+        // TODO are the values with invalid correct?
+        return Order{ id, symbol_id, OrderType::MARKET, side, TimeInForce::IOC, quantity, Quantity::max().value, Price::invalid().value, Price::invalid().value, slippage, TrailingDistance::invalid() };
+    }
+    constexpr static Order buy_market(uint64_t id, uint32_t symbol_id, uint64_t quantity, uint64_t slippage = Price::max().value) noexcept {
+        return market(id, symbol_id, OrderSide::BUY, quantity, slippage);
+    }
+    constexpr static Order sell_market(uint64_t id, uint32_t symbol_id, uint64_t quantity, uint64_t slippage = Price::max().value) noexcept {
+        return market(id, symbol_id, OrderSide::SELL, quantity, slippage);
+    }
+
+    constexpr static Order limit(uint64_t id, uint32_t symbol_id, OrderSide side, uint64_t price, uint64_t quantity, TimeInForce tif = TimeInForce::GTC, uint64_t max_visible_quantity = Quantity::max().value) noexcept {
+        // TODO are the values with invalid correct?
+        return Order{ id, symbol_id, OrderType::LIMIT, side, tif, quantity, max_visible_quantity, price, Price::invalid().value, Quantity::invalid().value, TrailingDistance::invalid() };
+    }
+    constexpr static Order buy_limit(uint64_t id, uint32_t symbol_id, uint64_t price, uint64_t quantity, TimeInForce tif = TimeInForce::GTC, uint64_t max_visible_quantity = Quantity::max().value) noexcept {
+        return limit(id, symbol_id, OrderSide::BUY, price, quantity, tif, max_visible_quantity);
+    }
+    constexpr static Order sell_limit(uint64_t id, uint32_t symbol_id, uint64_t price, uint64_t quantity, TimeInForce tif = TimeInForce::GTC, uint64_t max_visible_quantity = Quantity::max().value) noexcept {
+        return limit(id, symbol_id, OrderSide::SELL, price, quantity, tif, max_visible_quantity);
+    }
+
+    constexpr static Order stop(uint64_t id, uint32_t symbol_id, OrderSide side, uint64_t stop_price, uint64_t quantity, TimeInForce tif = TimeInForce::GTC, uint64_t slippage = Price::max().value) noexcept {
+        // TODO are the values with invalid correct?
+        return Order{ id, symbol_id, OrderType::STOP, side, tif, quantity, Quantity::max().value, Price::invalid().value, stop_price, slippage, TrailingDistance::invalid() };
+    }
+    constexpr static Order buy_stop(uint64_t id, uint32_t symbol_id, uint64_t stop_price, uint64_t quantity, TimeInForce tif = TimeInForce::GTC, uint64_t slippage = Price::max().value) noexcept {
+        return stop(id, symbol_id, OrderSide::BUY, stop_price, quantity, tif, slippage);
+    }
+    constexpr static Order sell_stop(uint64_t id, uint32_t symbol_id, uint64_t stop_price, uint64_t quantity, TimeInForce tif = TimeInForce::GTC, uint64_t slippage = Price::max().value) noexcept {
+        return stop(id, symbol_id, OrderSide::SELL, stop_price, quantity, tif, slippage);
+    }
+
+    constexpr static Order stop_limit(uint64_t id, uint32_t symbol_id, OrderSide side, uint64_t stop_price, uint64_t price, uint64_t quantity, TimeInForce tif = TimeInForce::GTC, uint64_t max_visible_quantity = Quantity::max().value) noexcept {
+        return Order{ id, symbol_id, OrderType::STOP_LIMIT, side, tif, quantity, max_visible_quantity, price, stop_price, Price::max().value, TrailingDistance::invalid() };
+    }
+    constexpr static Order buy_stop_limit(uint64_t id, uint32_t symbol_id, uint64_t stop_price, uint64_t price, uint64_t quantity, TimeInForce tif = TimeInForce::GTC, uint64_t max_visible_quantity = Quantity::max().value) noexcept {
+        return stop_limit(id, symbol_id, OrderSide::BUY, stop_price, price, quantity, tif, max_visible_quantity);
+    }
+    constexpr static Order sell_stop_limit(uint64_t id, uint32_t symbol_id, uint64_t stop_price, uint64_t price, uint64_t quantity, TimeInForce tif = TimeInForce::GTC, uint64_t max_visible_quantity = Quantity::max().value) noexcept {
+        return stop_limit(id, symbol_id, OrderSide::SELL, stop_price, price, quantity, tif, max_visible_quantity);
+    }
+
+    constexpr static Order trailing_stop(uint64_t id, uint32_t symbol_id, OrderSide side, uint64_t stop_price, uint64_t quantity, TrailingDistance trailing_distance, TimeInForce tif = TimeInForce::GTC, uint64_t slippage = Price::max().value) noexcept {
+        return Order{ id, symbol_id, OrderType::TRAILING_STOP, side, tif, quantity, Quantity::max().value, Price::invalid().value, stop_price, slippage, trailing_distance };
+    }
+    constexpr static Order trailing_buy_stop(uint64_t id, uint32_t symbol_id, uint64_t stop_price, uint64_t quantity, TrailingDistance trailing_distance, TimeInForce tif = TimeInForce::GTC, uint64_t slippage = Price::max().value) noexcept {
+        return trailing_stop(id, symbol_id, OrderSide::BUY, stop_price, quantity, trailing_distance, tif, slippage);
+    }
+    constexpr static Order trailing_sell_stop(uint64_t id, uint32_t symbol_id, uint64_t stop_price, uint64_t quantity, TrailingDistance trailing_distance, TimeInForce tif = TimeInForce::GTC, uint64_t slippage = Price::max().value) noexcept {
+        return trailing_stop(id, symbol_id, OrderSide::SELL, stop_price, quantity, trailing_distance, tif, slippage);
+    }
+
+    constexpr static Order trailing_stop_limit(uint64_t id, uint32_t symbol_id, OrderSide side, uint64_t stop_price, uint64_t price, uint64_t quantity, TrailingDistance trailing_distance, TimeInForce tif = TimeInForce::GTC, uint64_t max_visible_quantity = Quantity::max().value) noexcept {
+        return Order{ id, symbol_id, OrderType::TRIGGERED_TRAILING_STOP_LIMIT, side, tif, quantity, max_visible_quantity, price, stop_price, Price::max().value, trailing_distance };
+    }
+    constexpr static Order trailing_buy_stop_limit(uint64_t id, uint32_t symbol_id, uint64_t stop_price, uint64_t price, uint64_t quantity, TrailingDistance trailing_distance, TimeInForce tif = TimeInForce::GTC, uint64_t max_visible_quantity = Quantity::max().value) noexcept {
+        return trailing_stop_limit(id, symbol_id, OrderSide::BUY, stop_price, price, quantity, trailing_distance, tif, max_visible_quantity);
+    }
+    constexpr static Order trailing_sell_stop_limit(uint64_t id, uint32_t symbol_id, uint64_t stop_price, uint64_t price, uint64_t quantity, TrailingDistance trailing_distance, TimeInForce tif = TimeInForce::GTC, uint64_t max_visible_quantity = Quantity::max().value) noexcept {
+        return trailing_stop_limit(id, symbol_id, OrderSide::SELL, stop_price, price, quantity, trailing_distance, tif, max_visible_quantity);
+    }
+
 private:
+    
+    constexpr Order(
+        const uint64_t id,
+        const uint32_t symbol_id,
+        const OrderType type,
+        const OrderSide side,
+        const TimeInForce time_in_force,
+        const uint64_t quantity,
+        const uint64_t max_visible_quantity,
+        const uint64_t price,
+        const uint64_t stop_price,
+        const uint64_t slippage,
+        const TrailingDistance trailing_distance
+    ) noexcept :
+        _id(id),
+        _symbol_id(symbol_id),
+        _type(type),
+        _side(side),
+        _time_in_force(time_in_force),
+        _leaves_quantity(quantity),
+        _filled_quantity(0),
+        _max_visible_quantity(max_visible_quantity),
+        _price(price),
+        _stop_price(stop_price),
+        _initial_stop_price(stop_price),
+        _slippage(slippage),
+        _trailing_distance(trailing_distance)
+    {
+
+    }
 
     OrderId _id = OrderId::invalid();
 
