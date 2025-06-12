@@ -56,9 +56,12 @@ enum class TimeInForce : uint8_t {
     AON,  // All-Or-None
 };
 
+// TODO add mechanisms to report errors in release builds as well. Not just here, but in-place of all asserts.
+
 template <typename T, typename U>
 constexpr auto safe_add(T t, U u) noexcept {
     auto max = std::numeric_limits<decltype(t + u)>::max();
+    (void)max;
     assert((t <= (max - u)) && "Overflow");
     return t + u;
 }
@@ -66,6 +69,7 @@ constexpr auto safe_add(T t, U u) noexcept {
 template <typename T, typename U>
 constexpr auto safe_sub(T t, U u) noexcept {
     auto min = std::numeric_limits<decltype(t - u)>::min();
+    (void)min;
     assert((t >= (min + u)) && "Underflow");
     return t - u;
 }

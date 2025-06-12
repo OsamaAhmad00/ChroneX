@@ -30,8 +30,9 @@ public:
     }
 
     constexpr auto execute_quantity(iterator it, Quantity quantity) {
-        reduce_quantity(it, quantity);
+        // reduce_quantity might delete and invalidate the iterator
         it->increase_filled_quantity(quantity);
+        reduce_quantity(it, quantity);
     }
 
     constexpr auto reduce_quantity(iterator it, Quantity quantity) {

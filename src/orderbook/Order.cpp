@@ -6,6 +6,8 @@ namespace chronex {
 
 bool Order::is_valid() const noexcept {
 
+    // TODO add mechanisms to report errors in release builds as well. Not just here, but in-place of all asserts.
+
     // TODO make these checks more specific. Certain fields should be invalid if they're not part of the order type
     // assert(id() != OrderId::invalid() && "Order id must be valid!");
     // assert(symbol_id() != SymbolId::invalid() && "Order symbol id must be valid!");
@@ -42,6 +44,7 @@ bool Order::is_valid() const noexcept {
     {
         auto distance = trailing_distance().raw_distance();
         auto step = trailing_distance().raw_step();
+        (void)step;
         assert(distance != 0 &&
             "Trailing stop order must have non zero distance to the market!");
 
