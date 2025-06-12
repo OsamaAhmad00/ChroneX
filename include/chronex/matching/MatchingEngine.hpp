@@ -249,7 +249,7 @@ public:
         if (order_it->is_fully_filled()) {
             // Remove
             // TODO Is that all we need?
-            order_it->free();
+            level_it->free(order_it);
         } else {
             add_order<type, side>(std::move(*order_it));
         }

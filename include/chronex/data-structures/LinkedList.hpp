@@ -69,6 +69,8 @@ class LinkedList : private Allocator<LinkedListNode<T>> {
         constexpr reference operator* () const noexcept { return  _node->data(); }
         constexpr pointer   operator->() const noexcept { return &_node->data(); }
 
+        [[nodiscard]] constexpr bool is_invalidated() const noexcept { return _node == nullptr; }
+
         constexpr Iterator& operator++() noexcept {
             _node = NextFunc { } (_node);
             return *this;
@@ -103,8 +105,7 @@ class LinkedList : private Allocator<LinkedListNode<T>> {
         template <typename OtherNode, typename OtherNext, typename OtherPrev>
         friend class Iterator;
 
-        void free() {
-            delete _node;
+        void invalidate() {
             _node = nullptr;
         }
 
@@ -294,14 +295,22 @@ public:
         return Iter { node.release() };
     }
 
+    // TODO change this design so that it complies more with other containers
+    template <typename Iter>
+    constexpr void free(Iter pos) noexcept {
+        Node* node = pos.node();
+        AllocTraits::destroy(*this, node);
+        AllocTraits::deallocate(*this, node, 1);
+    }
+
     template <typename Iter>
     constexpr iterator erase(Iter pos) noexcept {
         assert(pos.node() != &dummy_head() && pos.node() != &dummy_tail() && "Cannot erase at the end() or rend() iterator");
         Node* node = pos.node();
         Node* next = node->next();
         unlink_node(node);
-        AllocTraits::destroy(*this, node);
-        AllocTraits::deallocate(*this, node, 1);
+        free(pos);
+        pos.invalidate();
         return Iter { next };
     }
 

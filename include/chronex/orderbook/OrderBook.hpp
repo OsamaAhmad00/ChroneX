@@ -156,8 +156,15 @@ public:
             event_handler().template on_remove_order<type, side>(*this, *order_it);
         }
 
+
+        // TODO Figure out a better way of doing this
+        auto id = order_it->id();
         // Execution might remove the order. Don't use it after execution
         level.execute_quantity(order_it, quantity);
+        if (order_it.is_invalidated()) {
+            // The order is fully executed and removed from the level
+            orders().erase(id);
+        }
 
         if (level.is_empty()) {
             event_handler().template on_remove_level<type, side>(*this, level_price);
