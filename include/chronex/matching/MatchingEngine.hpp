@@ -139,8 +139,6 @@ public:
     constexpr void add_market_order(T&& order) {
         auto& orderbook = orderbook_at(order.symbol_id());
 
-        event_handler().template on_add_order<OrderType::MARKET, side>(orderbook, order);
-
         if (is_matching_enabled())
             match_market_order<side>(orderbook, order);
 
@@ -152,8 +150,6 @@ public:
     template <OrderSide side>
     constexpr void add_limit_order(Order order) {
         auto& orderbook = orderbook_at(order.symbol_id());
-
-        event_handler().template on_add_order<OrderType::LIMIT, side>(orderbook, order);
 
         // Since this is a single-threaded engine, order additions will take place only
         //  after no current possible matches. This means that we don't need to respect
@@ -178,8 +174,6 @@ public:
             order.set_stop_price(orderbook.template calculate_trailing_stop_price<side>(order));
         }
 
-        event_handler().template on_add_order<type, side>(orderbook, order);
-
         if (int(is_matching_enabled()) & int(should_trigger<side>(orderbook, order))) {
             return trigger_new_stop_order<type, side>(orderbook, std::forward<T>(order));
         }
@@ -199,8 +193,6 @@ public:
             auto trailing_stop_price = orderbook.template calculate_trailing_stop_price<side>(order);
             order.set_stop_and_trailing_stop_prices(trailing_stop_price);
         }
-
-        event_handler().template on_add_order<type, side>(orderbook, order);
 
         if (int(is_matching_enabled()) & int(should_trigger<side>(orderbook, order))) {
             return trigger_new_stop_order<type, side>(orderbook, std::forward<T>(order));
