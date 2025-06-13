@@ -481,11 +481,10 @@ private:
                 auto execution_price = other.price();
 
                 // TODO make sure of the order type
+                // This will report the execution of other
                 orderbook.template execute_quantity<OrderType::LIMIT, opposite_side_value>(other_it, quantity, execution_price);
 
                 order.execute_quantity(quantity);
-
-                event_handler().template on_execute_order<opposite_side_value>(orderbook, other, quantity, execution_price);
                 event_handler().template on_execute_order<side>(orderbook, order, quantity, execution_price);
 
                 if (order.is_fully_filled()) {
