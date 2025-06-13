@@ -1,4 +1,5 @@
 #include <chronex/matching/MatchingEngine.hpp>
+#include <chronex/handlers/StreamEventHandler.hpp>
 
 auto create_order(uint64_t id) {
     return chronex::Order::buy_limit(
@@ -10,7 +11,10 @@ auto create_order(uint64_t id) {
 }
 
 int main() {
-    chronex::MatchingEngine<> matching_engine;
+    chronex::MatchingEngine<
+        chronex::Order,
+        chronex::handlers::StdOutEventHandler
+    > matching_engine;
     auto order_id = chronex::OrderId { 3 };
     auto price = chronex::Price { 100 };
     auto symbol = chronex::Symbol { { 1 }, "BTC" };

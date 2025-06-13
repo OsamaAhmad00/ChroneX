@@ -11,21 +11,19 @@ class NullEventHandler {
 public:
     // OrderBooks
     template <typename T>
-    void on_add_new_orderbook(T&) noexcept { };
+    void on_add_new_orderbook(T&) const noexcept { }
     template <typename T>
-    void on_add_orderbook(T&) noexcept { };
+    void on_add_orderbook(T&) const noexcept { }
     template <typename T>
-    void on_remove_orderbook(T&) noexcept { };
+    void on_remove_orderbook(T&) const noexcept { }
 
     // Levels
     template <OrderType, OrderSide, typename T, typename U>
-    void on_add_level(T&, U&) noexcept { };
+    void on_add_level(T&, U&) const noexcept { }
     template <OrderType, OrderSide, typename T, typename U>
-    void on_remove_level(T&, U&) noexcept { };
+    void on_remove_level(T&, U&) const noexcept { }
 
     // Orders
-    template <OrderType, OrderSide, typename T, typename U>
-    void on_create_order(T&, U&) const noexcept { }
     template <OrderType, OrderSide, typename T, typename U>
     void on_add_order(T&, U&) const noexcept { }
     template <OrderSide, typename T, typename U, typename V, typename P>
@@ -37,7 +35,7 @@ public:
     template <OrderSide, typename T, typename U>
     void on_update_stop_price(T&, U&) const noexcept { }
     template <OrderType, OrderSide, typename T, typename U>
-    void on_trigger_stop_order(T&, U&) noexcept { };
+    void on_trigger_stop_order(T&, U&) const noexcept { };
 };
 
 }

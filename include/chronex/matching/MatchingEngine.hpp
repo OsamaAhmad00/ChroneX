@@ -813,7 +813,7 @@ private:
 
                 auto quantity = calculate_matching_chain_quantity(*order_it, order_it->leaves_quantity(), volume);
 
-                event_handler().template on_execute_order<side>(orderbook, *order_it, price, quantity);
+                event_handler().template on_execute_order<side>(orderbook, *order_it, quantity, price);
 
                 // TODO remove this and include it in the reduce order
                 orderbook.template update_matching_price<side>(price);
@@ -944,7 +944,7 @@ private:
         auto chain_volume = calculate_matching_chain<level_side>(orderbook, order_it->price(), order_it->leaves_quantity());
         if (chain_volume == Quantity { 0 }) return;
         execute_matching_chain<level_side>(orderbook, order_it->price(), chain_volume);
-        event_handler().template on_execute_order<level_side>(orderbook, *order_it, order_it->price(), order_it->leaves_quantity());
+        event_handler().template on_execute_order<level_side>(orderbook, *order_it, order_it->leaves_quantity(), order_it->price());
         // TODO remove this
         orderbook.template update_matching_price<level_side>(order_it->price());
         // Doesn't remove, just marks it as fully filled

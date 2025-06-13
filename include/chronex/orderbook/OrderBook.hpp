@@ -99,7 +99,7 @@ public:
 
         assert(!orders().contains(id) && "Order with the same ID already exists in the order book");
 
-        auto level_it = this->template get_or_add_level<type, side>(order.price());
+        auto level_it = get_or_add_level<type, side>(order.price());
 
         if constexpr (should_report()) {
             event_handler().template on_add_order<type, side>(*this, order);
@@ -120,17 +120,17 @@ public:
         assert(level_it != levels.end());
 
         if constexpr (should_report()) {
-            event_handler().template on_order_delete<type, side>(*this, *order_it);
+            event_handler().template on_remove_order<type, side>(*this, *order_it);
 
-            if (level_it->is_empty()) {
-                event_handler().template on_price_level_delete<type, side>(*this, *order_it);
+            if (level_it->second.is_empty()) {
+                event_handler().template on_remove_level<type, side>(*this, level_it->first);
             }
         }
 
         levels.remove_order(order_it, level_it);
 
         if (level_it->second.is_empty()) {
-            event_handler().template on_remove_level<type, side>(*this, level_it->second);
+            event_handler().template on_remove_level<type, side>(*this, level_it->first);
             // Is removing levels with total_quantity == 0 an optimization or pessimization?
             // If you're not going to remove it, remember to consider levels with size == 0
             //  non-present, and not count a Levels struct with multiple 0-size levels not empty
