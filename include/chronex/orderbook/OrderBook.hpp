@@ -44,7 +44,7 @@ public:
     using LevelQueueDataType = typename PriceLevels<Order>::LevelQueueDataType;
 
     constexpr OrderBook(HashMap<OrderId, OrderIterator>* orders, const Symbol symbol, EventHandler* event_handler) noexcept
-        : _price_levels(event_handler), _stop_levels(event_handler), _trailing_stop_levels(event_handler),
+        : _price_levels(), _stop_levels(), _trailing_stop_levels(),
           _orders(orders), _symbol(symbol), _event_handler(event_handler) { }
 
     constexpr OrderBook() : OrderBook(nullptr, Symbol::invalid() , nullptr) { };

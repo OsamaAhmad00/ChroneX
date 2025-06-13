@@ -5,11 +5,10 @@
 namespace chronex {
 
 template <
-    concepts::Order OrderType,
-    concepts::EventHandler<OrderType> EventHandler = handlers::NullEventHandler
+    concepts::Order OrderType
 >
-struct TrailingStopLevels : public StopLevels<OrderType, EventHandler> {
-    using StopLevels<OrderType, EventHandler>::StopLevels;
+struct TrailingStopLevels : public StopLevels<OrderType> {
+    using StopLevels<OrderType>::StopLevels;
 };
 
 }

@@ -16,12 +16,11 @@ namespace chronex {
 
 template <
     concepts::Order Order,
-    concepts::UniTypeComparator<Price> Comp,
-    concepts::EventHandler<Order> EventHandler = handlers::NullEventHandler
+    concepts::UniTypeComparator<Price> Comp
 >
 class Levels {
 
-    using LevelType = Level<Order, EventHandler>;
+    using LevelType = Level<Order>;
     using ContainerType = std::map<Price, LevelType, Comp>;
 
 public:
@@ -42,7 +41,7 @@ public:
     constexpr auto best(this Self&& self) noexcept { return self.map().begin(); }
 
     constexpr auto add_level(const Price price) {
-        return map().emplace(price, &event_handler());
+        return map().emplace(price, LevelType{ });
     }
 
     template <typename Iter>
@@ -127,10 +126,7 @@ public:
 
     constexpr void clear() noexcept { map().clear(); }
 
-    template <typename Self>
-    [[nodiscard]] constexpr EventHandler& event_handler(this Self&& self) noexcept { return *self._event_handler; }
-
-    explicit Levels(EventHandler* event_handler) : _event_handler(event_handler) { }
+    Levels() = default;
 
     Levels(const Levels&) = delete;
 
@@ -152,18 +148,14 @@ private:
     ContainerType _map;
 
     size_t _orders_count { 0 };
-
-    EventHandler* _event_handler = nullptr;
 };
 
 template <
-    concepts::Order Order,
-    concepts::EventHandler<Order> EventHandler
+    concepts::Order Order
 > using AscendingLevels  = Levels<Order, std::less<>>;
 
 template <
-    concepts::Order Order,
-    concepts::EventHandler<Order> EventHandler
+    concepts::Order Order
 > using DescendingLevels = Levels<Order, std::greater<>>;
 
 }

@@ -8,7 +8,6 @@ namespace chronex {
 
 template <
     concepts::Order Order = Order,
-    concepts::EventHandler<Order> EventHandler = handlers::NullEventHandler,
     typename ListType = ds::LinkedList<Order>
 >
 class Level {
@@ -95,9 +94,7 @@ public:
     [[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return orders.rbegin(); }
     [[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return orders.rend(); }
 
-    [[nodiscard]] constexpr EventHandler& event_handler() noexcept { return *_event_handler; }
-
-    explicit Level(EventHandler* event_handler) : _event_handler(event_handler) { }
+    Level() = default;
 
     Level(const Level&) = delete;
 
@@ -116,8 +113,6 @@ private:
 
     Quantity _visible_volume = Quantity { 0 };
     Quantity _hidden_volume = Quantity { 0 };
-
-    EventHandler* _event_handler = nullptr;
 };
 
 }

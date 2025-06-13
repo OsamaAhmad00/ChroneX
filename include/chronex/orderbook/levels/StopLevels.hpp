@@ -5,10 +5,9 @@
 namespace chronex {
 
 template <
-    concepts::Order OrderType,
-    concepts::EventHandler<OrderType> EventHandler = handlers::NullEventHandler
+    concepts::Order OrderType
 >
-struct StopLevels : public PriceLevels<OrderType, EventHandler> {
-    using PriceLevels<OrderType, EventHandler>::PriceLevels;
+struct StopLevels : public PriceLevels<OrderType> {
+    using PriceLevels<OrderType>::PriceLevels;
 };
 }
