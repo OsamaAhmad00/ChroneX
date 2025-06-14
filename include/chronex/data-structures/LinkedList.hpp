@@ -69,8 +69,6 @@ class LinkedList : private Allocator<LinkedListNode<T>> {
         constexpr reference operator* () const noexcept { return  _node->data(); }
         constexpr pointer   operator->() const noexcept { return &_node->data(); }
 
-        [[nodiscard]] constexpr bool is_invalidated() const noexcept { return _node == nullptr; }
-
         constexpr Iterator& operator++() noexcept {
             _node = NextFunc { } (_node);
             return *this;
@@ -104,10 +102,6 @@ class LinkedList : private Allocator<LinkedListNode<T>> {
         // Make all iterator types friends to access the node pointer
         template <typename OtherNode, typename OtherNext, typename OtherPrev>
         friend class Iterator;
-
-        void invalidate() {
-            _node = nullptr;
-        }
 
     private:
 
@@ -310,7 +304,6 @@ public:
         Node* next = node->next();
         unlink_node(node);
         free(pos);
-        pos.invalidate();
         return Iter { next };
     }
 
