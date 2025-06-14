@@ -395,9 +395,9 @@ private:
                     //  other will be partially filled (reduced). Determine which side is
                     //  executed and which side is reduced.
                     if (bid_it->leaves_quantity() > ask_it->leaves_quantity()) {
-                        match_orders<OrderSide::BUY, OrderSide::SELL>(orderbook, bid_it, ask_it);
+                        match_orders<OrderSide::BUY, OrderSide::SELL>(orderbook, bid_it, bid_level_it, ask_it, ask_level_it);
                     } else {
-                        match_orders<OrderSide::SELL, OrderSide::BUY>(orderbook, ask_it, bid_it);
+                        match_orders<OrderSide::SELL, OrderSide::BUY>(orderbook, ask_it, ask_level_it, bid_it, bid_level_it);
                     }
                 }
 
@@ -425,8 +425,9 @@ private:
 
         // TODO you can pass a template argument stating whether this is an executing
         //  side or not, and if so, delete it without checking for full execution
-        orderbook.template execute_quantity<OrderType::LIMIT, executing_side>(executing_order, quantity, price);
-        orderbook.template execute_quantity<OrderType::LIMIT, reducing_side >(reducing_order , quantity, price);
+        // TODO ignore the new order_it and level_it?
+        (void)orderbook.template execute_quantity<OrderType::LIMIT, executing_side>(executing_order, executing_level_it, quantity, price);
+        (void)orderbook.template execute_quantity<OrderType::LIMIT, reducing_side >(reducing_order , reducing_level_it , quantity, price);
     }
 
     template <OrderSide side>
@@ -446,10 +447,11 @@ private:
         auto& opposite = get_side<opposite_side_value>(orderbook);
 
         while (!opposite.is_empty()) {
-            auto& [price, level] = *opposite.best();
+            auto level_it = opposite.begin();
 
             // Make sure there are crossed orders first
-            if (!prices_cross<side>(order_it->price(), price)) break;
+            auto level_price = level_it->first;
+            if (!prices_cross<side>(order_it->price(), level_price)) break;
 
             // No short-circuit behavior
             if (int(order_it->is_fok()) | int(order_it->is_aon())) {
@@ -458,8 +460,9 @@ private:
 
             // match_order_with_level<side>(orderbook, order_it, level);
 
-            while (!level.is_empty()) {
-                auto other_it = level.begin();
+            // TODO refactor here
+            while (int(level_it != opposite.end() && int(!level_it->second.is_empty()))) {
+                auto other_it = level_it->second.begin();
                 auto& other = *other_it;
 
                 // Either this order is fully "executing" or the target order `order` is executing.
@@ -482,7 +485,7 @@ private:
 
                 // TODO make sure of the order type
                 // This will report the execution of other
-                orderbook.template execute_quantity<OrderType::LIMIT, opposite_side_value>(other_it, quantity, execution_price);
+                std::tie(other_it, level_it) = orderbook.template execute_quantity<OrderType::LIMIT, opposite_side_value>(other_it, level_it, quantity, execution_price);
 
                 order.execute_quantity(quantity);
                 event_handler().template on_execute_order<side>(orderbook, order, quantity, execution_price);
@@ -803,28 +806,41 @@ private:
         auto& levels = get_side<side>(orderbook);
 
         // TODO Should we say while (!levels.is_empty())?
+        // auto level_it = levels.begin();
+        // while (int(level_it != levels.end()) & int(volume > Quantity { 0 })) {
+        //     auto& [level_price, level] = *level_it;
+        //     auto order_it = level.begin();
+        //
+        //     while (order_it != level.end()) {
+        //
+        //         auto quantity = calculate_matching_chain_quantity(*order_it, order_it->leaves_quantity(), volume);
+        //
+        //         event_handler().template on_execute_order<side>(orderbook, *order_it, quantity, price);
+        //
+        //         // TODO remove this and include it in the reduce order
+        //         orderbook.template update_matching_price<side>(price);
+        //
+        //         orderbook.template execute_quantity<OrderType::LIMIT, side>(order_it, quantity, price);
+        //
+        //         volume -= quantity;
+        //
+        //         order_it = level.next(order_it);
+        //     }
+        //
+        //     ++level_it;
+        // }
+
         auto level_it = levels.begin();
-        while (int(level_it != levels.end()) & int(volume > Quantity { 0 })) {
-            auto& [level_price, level] = *level_it;
-            auto order_it = level.begin();
+        auto order_it = level_it->second.begin();
+        while (volume > Quantity { 0 }) {
+            auto quantity = calculate_matching_chain_quantity(*order_it, order_it->leaves_quantity(), volume);
 
-            while (order_it != level.end()) {
+            event_handler().template on_execute_order<side>(orderbook, *order_it, quantity, price);
 
-                auto quantity = calculate_matching_chain_quantity(*order_it, order_it->leaves_quantity(), volume);
+            // execute_quantity is likely to delete the order and possibly the level
+            std::tie(order_it, level_it) = orderbook.template execute_quantity<OrderType::LIMIT, side>(order_it, level_it, quantity, price);
 
-                event_handler().template on_execute_order<side>(orderbook, *order_it, quantity, price);
-
-                // TODO remove this and include it in the reduce order
-                orderbook.template update_matching_price<side>(price);
-
-                orderbook.template execute_quantity<OrderType::LIMIT, side>(order_it, quantity, price);
-
-                volume -= quantity;
-
-                order_it = level.next(order_it);
-            }
-
-            ++level_it;
+            volume -= quantity;
         }
     }
 

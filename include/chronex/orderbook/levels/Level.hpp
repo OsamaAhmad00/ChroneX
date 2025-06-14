@@ -28,13 +28,13 @@ public:
         return orders.emplace_back(std::move(order));
     }
 
-    constexpr auto execute_quantity(iterator it, Quantity quantity) {
+    [[nodiscard]] constexpr auto execute_quantity(iterator it, Quantity quantity) {
         // reduce_quantity might delete and invalidate the iterator
         it->increase_filled_quantity(quantity);
-        reduce_quantity(it, quantity);
+        return reduce_quantity(it, quantity);
     }
 
-    constexpr auto reduce_quantity(iterator it, Quantity quantity) {
+    [[nodiscard]] constexpr auto reduce_quantity(iterator it, Quantity quantity) {
         assert(total_volume() >= quantity && "Trying to reduce more quantity than the level has");
 
         if (quantity == it->leaves_quantity()) {
@@ -48,12 +48,16 @@ public:
 
         _visible_volume -= (old_visible - it->visible_quantity());
         _hidden_volume -= (old_hidden - it->hidden_quantity());
+
+        return it;
     }
 
-    constexpr auto remove_order(iterator it) noexcept {
+    [[nodiscard]] constexpr auto remove_order(iterator it) noexcept {
         _visible_volume -= it->visible_quantity();
         _hidden_volume -= it->hidden_quantity();
+        auto n = next(it);
         orders.erase(it);
+        return n;
     }
 
     constexpr auto unlink_order(iterator it) noexcept {

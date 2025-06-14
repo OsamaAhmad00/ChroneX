@@ -140,41 +140,40 @@ public:
         remove_order_from_map(id);
     }
 
-    template <OrderType type, OrderSide side>
-    constexpr void execute_quantity(OrderIterator order_it, const Quantity quantity, const Price price) noexcept {
+    template <OrderType type, OrderSide side, typename T>
+    [[nodiscard]] constexpr auto execute_quantity(OrderIterator order_it, T level_it, const Quantity quantity, const Price price) noexcept {
 
         // TODO check for last price as well
         update_matching_price<side>(price);
 
-        auto& price_levels = levels<type, side>();
-        auto level_it = price_levels.find(order_it->price());
         auto& [level_price, level] = *level_it;
 
         event_handler().template on_execute_order<side>(*this, *order_it, quantity, price);
+        // TODO find a better way for knowing if the order is to be deleted
         if (quantity == order_it->leaves_quantity()) {
             // TODO report both execute, then remove if it's fully executed?
             event_handler().template on_remove_order<type, side>(*this, *order_it);
-        }
-
-
-        // TODO Figure out a better way of doing this
-        auto id = order_it->id();
-        // Execution might remove the order. Don't use it after execution
-        level.execute_quantity(order_it, quantity);
-        if (order_it.is_invalidated()) {
             // The order is fully executed and removed from the level
-            orders().erase(id);
+            orders().erase(order_it->id());
         }
 
+        // Execution might remove the order. Don't use it after execution
+        auto valid_order_it = level.execute_quantity(order_it, quantity);
+
+        auto valid_level_it = level_it;
         if (level.is_empty()) {
             event_handler().template on_remove_level<type, side>(*this, level_price);
+            auto& price_levels = levels<type, side>();
+            ++valid_level_it;
             price_levels.remove_level(level_it);
         }
+
+        return std::make_pair(valid_order_it, valid_level_it);
     }
 
     template <OrderType type, OrderSide side>
-    constexpr void execute_quantity(OrderIterator order_it, const Quantity quantity) noexcept {
-        execute_quantity<type, side>(order_it, quantity, order_it->price());
+    [[nodiscard]] constexpr auto execute_quantity(OrderIterator order_it, const Quantity quantity) noexcept {
+        return execute_quantity<type, side>(order_it, quantity, order_it->price());
     }
 
     constexpr void reset_matching_prices() noexcept {

@@ -73,8 +73,8 @@ struct Order {
     }
 
     constexpr void execute_quantity(const Quantity quantity) noexcept {
-        reduce_quantity(quantity);
         increase_filled_quantity(quantity);
+        reduce_quantity(quantity);
     }
 
     constexpr void increase_filled_quantity(const Quantity quantity) noexcept {
