@@ -26,12 +26,14 @@ public:
     // Orders
     template <OrderType, OrderSide, typename T, typename U>
     void on_add_order(T&, U&) const noexcept { }
+    template <OrderType, OrderSide, typename T, typename U>
+    void on_remove_order(T&, U&) const noexcept { }
+    template <OrderType, OrderSide, typename T, typename U, typename Q>
+    void on_reduce_order(T&, U&, Q&) const noexcept { }
     template <OrderSide, typename T, typename U, typename V, typename P>
     void on_execute_order(T&, U&, V, P) const noexcept { }
     template <OrderSide, OrderSide, typename T, typename U, typename V>
     void on_match_order(T&, U&, V&) const noexcept { }
-    template <OrderType, OrderSide, typename T, typename U>
-    void on_remove_order(T&, U&) const noexcept { }
     template <OrderSide, typename T, typename U>
     void on_update_stop_price(T&, U&) const noexcept { }
     template <OrderType, OrderSide, typename T, typename U>

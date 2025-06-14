@@ -215,7 +215,11 @@ public:
         if (quantity == order_it->leaves_quantity()) {
             return remove_order<type, side>(orderbook, order_it, level_it);
         }
-        level_it->second.reduce_quantity(order_it, quantity);
+
+        event_handler().template on_reduce_order<type, side>(orderbook, *order_it, quantity);
+
+        // TODO ignore return value?
+        (void)level_it->second.reduce_quantity(order_it, quantity);
 
         if (is_matching_enabled())
             match(orderbook);
@@ -315,7 +319,8 @@ private:
 
         auto func = [&] <OrderType type, OrderSide side> {
             quantity = std::min(quantity, order_it->leaves_quantity());
-            orderbook.template execute_quantity<type, side>(order_it, quantity, price);
+            auto level_it = orderbook.template levels<type, side>().find(order_it->price());
+            (void)orderbook.template execute_quantity<type, side>(order_it, level_it, quantity, price);
         };
 
         resolve_type_and_side_then_call(*order_it, func);
@@ -415,8 +420,8 @@ private:
         }
     }
 
-    template <OrderSide executing_side, OrderSide reducing_side>
-    constexpr void match_orders(OrderBook& orderbook, OrderIterator executing_order, OrderIterator& reducing_order) noexcept {
+    template <OrderSide executing_side, OrderSide reducing_side, typename T>
+    constexpr void match_orders(OrderBook& orderbook, OrderIterator executing_order, T executing_level_it, OrderIterator reducing_order, T reducing_level_it) noexcept {
         Quantity quantity = executing_order->leaves_quantity();
         // TODO should the price be of an arbitrary side?
         Price price = executing_order->price();
