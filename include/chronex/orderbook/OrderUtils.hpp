@@ -59,6 +59,20 @@ enum class TimeInForce : uint8_t {
 // TODO add mechanisms to report errors in release builds as well. Not just here, but in-place of all asserts.
 
 template <typename T, typename U>
+constexpr auto clipping_add(T t, U u) noexcept {
+    auto max = std::numeric_limits<decltype(t + u)>::max();
+    if (t <= (max - u)) return t + u;
+    return max;
+}
+
+template <typename T, typename U>
+constexpr auto clipping_sub(T t, U u) noexcept {
+    auto min = std::numeric_limits<decltype(t - u)>::min();
+    if (t >= (min + u)) return t - u;
+    return min;
+}
+
+template <typename T, typename U>
 constexpr auto safe_add(T t, U u) noexcept {
     auto max = std::numeric_limits<decltype(t + u)>::max();
     (void)max;
