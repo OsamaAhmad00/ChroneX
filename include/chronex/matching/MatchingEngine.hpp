@@ -45,6 +45,16 @@ public:
     constexpr void enable_matching() noexcept { _is_matching_enabled = true; }
     constexpr void disable_matching() noexcept { _is_matching_enabled = false; }
 
+    // TODO should these two methods be public? They're used in testing, but should they be exposed to users?
+    [[nodiscard]] constexpr auto& orderbook_at(SymbolId id) noexcept {
+        assert(id.value < orderbooks().size() && "No orderbook with the given ID exists in the matching engine");
+        return orderbooks()[id.value];
+    }
+
+    [[nodiscard]] constexpr auto& order_at(OrderId id) const noexcept {
+        return orders()[id];
+    }
+
     constexpr void add_new_orderbook(Symbol symbol) {
         event_handler().on_add_new_orderbook(symbol);
         add_existing_orderbook(OrderBook { &orders(), symbol, &event_handler() }, false);
