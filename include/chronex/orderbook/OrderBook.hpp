@@ -148,8 +148,7 @@ public:
     template <OrderType type, OrderSide side, typename T>
     [[nodiscard]] constexpr auto execute_quantity(OrderIterator order_it, T level_it, const Quantity quantity, const Price price) noexcept {
 
-        // TODO check for last price as well
-        update_matching_price<side>(price);
+        update_last_and_matching_price<side>(price);
 
         auto& [level_price, level] = *level_it;
 
@@ -233,6 +232,21 @@ public:
             return _trailing_bid_price;
         } else {
             return _trailing_ask_price;
+        }
+    }
+
+    template <OrderSide side>
+    constexpr void update_last_and_matching_price(const Price price) noexcept {
+        update_last_price<side>(price);
+        update_matching_price<side>(price);
+    }
+
+    template <OrderSide side>
+    constexpr void update_last_price(const Price price) noexcept {
+        if constexpr (side == OrderSide::BUY) {
+            _last_bid_price = price;
+        } else {
+            _last_ask_price = price;
         }
     }
 

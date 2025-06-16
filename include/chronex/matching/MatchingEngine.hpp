@@ -980,7 +980,7 @@ private:
         execute_matching_chain<level_side>(orderbook, order.price(), chain_volume);
         event_handler().template on_execute_order<level_side>(orderbook, order, order.leaves_quantity(), order.price());
         // TODO remove this
-        orderbook.template update_matching_price<level_side>(order.price());
+        orderbook.template update_last_and_matching_price<level_side>(order.price());
         // Doesn't remove, just marks it as fully filled
         order.execute_quantity(order.leaves_quantity());
     }
