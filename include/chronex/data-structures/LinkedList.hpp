@@ -28,6 +28,9 @@ struct LinkedListNode {
 
 private:
 
+    template <typename, template <typename> class>
+    friend class LinkedList;
+
     LinkedListNode* _prev = nullptr;
     LinkedListNode* _next = nullptr;
     T _data;
@@ -107,7 +110,7 @@ class LinkedList : private Allocator<LinkedListNode<T>> {
 
         friend LinkedList;
 
-        constexpr auto node() const noexcept { return _node; }
+        constexpr NodeType* node() const noexcept { return _node; }
 
         NodeType* _node;
     };
@@ -379,6 +382,11 @@ private:
     //  constructable
     alignas(alignof(Node)) char _dummy_head[sizeof(Node)];
     alignas(alignof(Node)) char _dummy_tail[sizeof(Node)];
+
+#ifdef _DEBUG
+    Node*& d_head = reinterpret_cast<Node*>(&_dummy_head)->_next;
+    Node*& d_tail = reinterpret_cast<Node*>(&_dummy_tail)->_prev;
+#endif
 
     Node& dummy_head() { return *reinterpret_cast<Node*>(&_dummy_head); }
     Node& dummy_tail() { return *reinterpret_cast<Node*>(&_dummy_tail); }
