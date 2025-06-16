@@ -35,7 +35,10 @@ struct Order {
 
     [[nodiscard]] constexpr Quantity max_visible_quantity() const noexcept { return _max_visible_quantity; }
     [[nodiscard]] constexpr Quantity visible_quantity() const noexcept { return std::min(leaves_quantity(), max_visible_quantity()); }
-    [[nodiscard]] constexpr Quantity hidden_quantity() const noexcept { return std::max(Quantity { 0 }, leaves_quantity() - max_visible_quantity()); }
+    [[nodiscard]] constexpr Quantity hidden_quantity() const noexcept {
+        if (max_visible_quantity() > leaves_quantity()) return Quantity { 0 };
+        return leaves_quantity() - max_visible_quantity();
+    }
 
     [[nodiscard]] constexpr bool is_hidden() const noexcept { return max_visible_quantity() == Quantity { 0 }; }
     // TODO make sure of this
