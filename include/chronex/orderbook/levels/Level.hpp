@@ -22,56 +22,6 @@ public:
     using reverse_iterator = typename ListType::reverse_iterator;
     using const_reverse_iterator = typename ListType::const_reverse_iterator;
 
-    constexpr auto add_order(value_type&& order) {
-        _visible_volume += order.visible_quantity();
-        _hidden_volume += order.hidden_quantity();
-        return orders.emplace_back(std::move(order));
-    }
-
-    [[nodiscard]] constexpr auto execute_quantity(iterator it, Quantity quantity) {
-        // reduce_quantity might delete and invalidate the iterator
-        it->increase_filled_quantity(quantity);
-        return reduce_quantity(it, quantity);
-    }
-
-    [[nodiscard]] constexpr auto reduce_quantity(iterator it, Quantity quantity) {
-        assert(total_volume() >= quantity && "Trying to reduce more quantity than the level has");
-
-        if (quantity == it->leaves_quantity()) {
-            return remove_order(it);
-        }
-
-        auto old_visible = it->visible_quantity();
-        auto old_hidden = it->hidden_quantity();
-
-        it->execute_quantity(quantity);
-
-        _visible_volume -= (old_visible - it->visible_quantity());
-        _hidden_volume -= (old_hidden - it->hidden_quantity());
-
-        return it;
-    }
-
-    [[nodiscard]] constexpr auto remove_order(iterator it) noexcept {
-        _visible_volume -= it->visible_quantity();
-        _hidden_volume -= it->hidden_quantity();
-        auto n = next(it);
-        orders.erase(it);
-        return n;
-    }
-
-    constexpr auto unlink_order(iterator it) noexcept {
-        _visible_volume -= it->visible_quantity();
-        _hidden_volume -= it->hidden_quantity();
-        orders.unlink_node(it);
-    }
-
-    constexpr auto link_order_back(iterator it) noexcept {
-        _visible_volume += it->visible_quantity();
-        _hidden_volume += it->hidden_quantity();
-        orders.link_node_back(it);
-    }
-
     template <typename Iter>
     constexpr std::remove_reference_t<Iter> prev(Iter&& it) {
         return std::prev(it);
@@ -111,6 +61,59 @@ public:
     ~Level() = default;
 
 private:
+
+    constexpr auto add_order(value_type&& order) {
+        _visible_volume += order.visible_quantity();
+        _hidden_volume += order.hidden_quantity();
+        return orders.emplace_back(std::move(order));
+    }
+
+    [[nodiscard]] constexpr auto execute_quantity(iterator it, Quantity quantity) {
+        // reduce_quantity might delete and invalidate the iterator
+        it->increase_filled_quantity(quantity);
+        return reduce_order(it, quantity);
+    }
+
+    [[nodiscard]] constexpr auto reduce_order(iterator it, Quantity quantity) {
+        assert(total_volume() >= quantity && "Trying to reduce more quantity than the level has");
+
+        if (quantity == it->leaves_quantity()) {
+            return remove_order(it);
+        }
+
+        auto old_visible = it->visible_quantity();
+        auto old_hidden = it->hidden_quantity();
+
+        it->execute_quantity(quantity);
+
+        _visible_volume -= (old_visible - it->visible_quantity());
+        _hidden_volume -= (old_hidden - it->hidden_quantity());
+
+        return it;
+    }
+
+    [[nodiscard]] constexpr auto remove_order(iterator it) noexcept {
+        _visible_volume -= it->visible_quantity();
+        _hidden_volume -= it->hidden_quantity();
+        auto n = next(it);
+        orders.erase(it);
+        return n;
+    }
+
+    constexpr auto unlink_order(iterator it) noexcept {
+        _visible_volume -= it->visible_quantity();
+        _hidden_volume -= it->hidden_quantity();
+        orders.unlink_node(it);
+    }
+
+    constexpr auto link_order_back(iterator it) noexcept {
+        _visible_volume += it->visible_quantity();
+        _hidden_volume += it->hidden_quantity();
+        orders.link_node_back(it);
+    }
+
+    template <concepts::Order, concepts::UniTypeComparator<Price>>
+    friend class Levels;
 
     // TODO: experiment with other types including different lists and arrays as well
     ListType orders { };

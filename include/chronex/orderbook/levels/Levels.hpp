@@ -40,17 +40,18 @@ public:
     template <typename Self>
     constexpr auto best(this Self&& self) noexcept { return self.map().begin(); }
 
-    constexpr auto add_level(const Price price) {
+    constexpr auto add_level(const Price price) noexcept {
         return map().emplace(price, LevelType{ });
     }
 
     template <typename Iter>
-    constexpr auto remove_level(Iter level_it) {
+    constexpr auto remove_level(Iter level_it) noexcept {
+        _orders_count -= level_it->second.size();
         return map().erase(level_it);
     }
 
     template <typename Iter>
-    constexpr auto add_order(Order&& order, Iter level_it) {
+    constexpr auto add_order(Order&& order, Iter level_it) noexcept {
         assert(level_it != this->end() && "Trying to add an order to a non-existing level");
 
         ++_orders_count;
@@ -59,23 +60,30 @@ public:
     }
 
     template <OrderType type, OrderSide side, typename T>
-    constexpr auto add_order(T&& order) {
+    constexpr auto add_order(T&& order) noexcept {
         return add_order<type, side>(std::forward<T>(order), this->find(order.price()));
     }
 
-    template <OrderType type, OrderSide side, typename Iter>
-    constexpr auto reduce_order(OrderIterator order_it, Iter level_it) {
-        assert(level_it != this->end() && "Trying to reduce an order from a non-existing level");
-        return level_it->second.template reduce_order<type, side>(order_it);
-    }
-
-    template <OrderType type, OrderSide side, typename T>
-    constexpr auto reduce_order(T&& order) {
-        return reduce_order<type, side>(std::forward<T>(order), this->find(order.price()));
+    template <typename T>
+    constexpr auto execute_quantity(OrderIterator order_it, T level_it, Quantity quantity) noexcept {
+        // TODO remove duplication
+        assert(level_it != this->end() && "Trying to execute an order from a non-existing level");
+        auto valid_order_it = level_it->second.execute_quantity(order_it, quantity);
+        bool removed = valid_order_it != order_it;
+        _orders_count -= removed;
+        return valid_order_it;
     }
 
     template <typename Iter>
-    constexpr auto remove_order(OrderIterator order_it, Iter level_it) {
+    constexpr auto reduce_order(OrderIterator order_it, Iter level_it, Quantity quantity) noexcept {
+        assert(level_it != this->end() && "Trying to reduce an order from a non-existing level");
+        auto valid_order_it = level_it->second.reduce_order(order_it, quantity);
+        bool removed = valid_order_it != order_it;
+        _orders_count -= removed;
+    }
+
+    template <typename Iter>
+    constexpr auto remove_order(OrderIterator order_it, Iter level_it) noexcept {
         // assert(orders_count > 0 && "Trying to remove order from empty level");
         assert(level_it != this->end() && "Trying to remove order from a non-existing level");
 
@@ -85,16 +93,16 @@ public:
     }
 
     template <OrderType type, OrderSide side>
-    constexpr auto remove_order(OrderIterator order_it) {
+    constexpr auto remove_order(OrderIterator order_it) noexcept {
         return remove_order<type, side>(order_it, this->find(order_it->price()));
     }
 
-    constexpr auto link_order_back(OrderIterator order_it, iterator level_it) {
+    constexpr auto link_order_back(OrderIterator order_it, iterator level_it) noexcept {
         level_it->second.link_order_back(order_it);
         ++_orders_count;
     }
 
-    constexpr auto unlink_order(OrderIterator order_it, iterator level_it) {
+    constexpr auto unlink_order(OrderIterator order_it, iterator level_it) noexcept {
         level_it->second.unlink_order(order_it);
         --_orders_count;
     }

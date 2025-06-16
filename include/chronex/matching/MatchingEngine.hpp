@@ -219,7 +219,7 @@ public:
         event_handler().template on_reduce_order<type, side>(orderbook, *order_it, quantity);
 
         // TODO ignore return value?
-        (void)level_it->second.reduce_quantity(order_it, quantity);
+        orderbook.template reduce_order<type, side>(order_it, level_it, quantity);
 
         if (is_matching_enabled())
             match(orderbook);

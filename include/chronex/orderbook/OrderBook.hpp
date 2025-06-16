@@ -47,7 +47,7 @@ public:
         : _price_levels(), _stop_levels(), _trailing_stop_levels(),
           _orders(orders), _symbol(symbol), _event_handler(event_handler) { }
 
-    constexpr OrderBook() : OrderBook(nullptr, Symbol::invalid() , nullptr) { };
+    constexpr OrderBook() noexcept : OrderBook(nullptr, Symbol::invalid() , nullptr) { };
 
     [[nodiscard]] constexpr bool is_valid() const noexcept { return symbol_id() != SymbolId::invalid(); }
 
@@ -111,7 +111,12 @@ public:
     }
 
     template <OrderType type, OrderSide side, typename T>
-    constexpr auto remove_order(OrderIterator order_it, T level_it) {
+    constexpr auto reduce_order(OrderIterator order_it, T level_it, Quantity quantity) noexcept {
+        return levels<type, side>().template reduce_order<type, side>(order_it, level_it, quantity);
+    }
+
+    template <OrderType type, OrderSide side, typename T>
+    constexpr auto remove_order(OrderIterator order_it, T level_it) noexcept {
         auto id = order_it->id();
 
         assert(orders().contains(id) && "Order with the same ID doesn't exists in the order book");
@@ -158,7 +163,7 @@ public:
         }
 
         // Execution might remove the order. Don't use it after execution
-        auto valid_order_it = level.execute_quantity(order_it, quantity);
+        auto valid_order_it = levels<type, side>().execute_quantity(order_it, level_it, quantity);
 
         auto valid_level_it = level_it;
         if (level.is_empty()) {
