@@ -453,11 +453,6 @@ private:
         //  and the calling function will handle the rest accordingly.
         // This removes orders being matched from the opposite side.
 
-        // TODO remove this nasty hack
-        typename OrderBook::LevelQueueDataType temp_queue;
-        temp_queue.push_back(std::move(order));
-        auto order_it = temp_queue.begin();
-
         constexpr auto opposite_side_value = opposite_side<side>();
         auto& opposite = get_side<opposite_side_value>(orderbook);
 
@@ -469,8 +464,8 @@ private:
             if (!prices_cross<side>(order.price(), level_price)) break;
 
             // No short-circuit behavior
-            if (int(order_it->is_fok()) | int(order_it->is_aon())) {
-                return try_match_aon<opposite_side_value>(orderbook, order_it);
+            if (int(order.is_fok()) | int(order.is_aon())) {
+                return try_match_aon<opposite_side_value>(orderbook, order);
             }
 
             // match_order_with_level<side>(orderbook, order_it, level);
@@ -511,9 +506,6 @@ private:
                 }
             }
         }
-
-        // TODO remove this
-        order = std::move(*order_it);
     }
 
     template <OrderSide side>
@@ -975,15 +967,15 @@ private:
     }
 
     template <OrderSide level_side>
-    constexpr void try_match_aon(OrderBook& orderbook, OrderIterator order_it) noexcept {
-        auto chain_volume = calculate_matching_chain<level_side>(orderbook, order_it->price(), order_it->leaves_quantity());
+    constexpr void try_match_aon(OrderBook& orderbook, Order& order) noexcept {
+        auto chain_volume = calculate_matching_chain<opposite_side<level_side>()>(orderbook, order.price(), order.leaves_quantity());
         if (chain_volume == Quantity { 0 }) return;
-        execute_matching_chain<level_side>(orderbook, order_it->price(), chain_volume);
-        event_handler().template on_execute_order<level_side>(orderbook, *order_it, order_it->leaves_quantity(), order_it->price());
+        execute_matching_chain<level_side>(orderbook, order.price(), chain_volume);
+        event_handler().template on_execute_order<level_side>(orderbook, order, order.leaves_quantity(), order.price());
         // TODO remove this
-        orderbook.template update_matching_price<level_side>(order_it->price());
+        orderbook.template update_matching_price<level_side>(order.price());
         // Doesn't remove, just marks it as fully filled
-        order_it->execute_quantity(order_it->leaves_quantity());
+        order.execute_quantity(order.leaves_quantity());
     }
 
     template <OrderSide side>
