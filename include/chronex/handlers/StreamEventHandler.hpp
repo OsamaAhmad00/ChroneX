@@ -146,49 +146,49 @@ public:
 
     template <OrderType type, OrderSide side>
     void on_add_level(auto& orderbook, const Price price) const noexcept {
-        stream << EVENT_NAME << "\t\t\t(" << type << ",\t" << side << ")\t" << '\t' << ob(orderbook) << "\tPrice = " << price << '\n';
+        stream << EVENT_NAME << "\t\t\t(" << type << ", " << side << ")\t" << '\t' << ob(orderbook) << "\tPrice = " << price << '\n';
     }
 
     template <OrderType type, OrderSide side>
     void on_remove_level(auto& orderbook, const Price price) const noexcept {
-        stream << EVENT_NAME << "\t\t(" << type << ",\t" << side << ")\t" << '\t' << ob(orderbook) << "\trice = " << price << '\n';
+        stream << EVENT_NAME << "\t\t(" << type << ", " << side << ")\t" << '\t' << ob(orderbook) << "\tPrice = " << price << '\n';
     }
 
     // Orders
 
     template <OrderType type, OrderSide side>
     void on_add_order(auto& orderbook, auto& order) const noexcept {
-        stream << EVENT_NAME << "\t\t\t(" << type << ",\t" << side << ")\t" << '\t' << ob(orderbook) << '\t' << o(order) << '\n';
+        stream << EVENT_NAME << "\t\t\t(" << type << ", " << side << ")\t" << '\t' << ob(orderbook) << '\t' << o(order) << '\n';
     }
 
     template <OrderType type, OrderSide side>
     void on_remove_order(auto& orderbook, auto& order) const noexcept {
-        stream << EVENT_NAME << "\t\t(" << type << ",\t" << side << ")\t" << '\t' << ob(orderbook) << '\t' << o(order) << '\n';
+        stream << EVENT_NAME << "\t\t(" << type << ", " << side << ")\t" << '\t' << ob(orderbook) << '\t' << o(order) << '\n';
     }
 
     template <OrderSide side>
     void on_execute_order(auto& orderbook, auto& order, const Quantity quantity, const Price price) const noexcept {
-        stream << EVENT_NAME << "\t\t(" << order.type() << ",\t" << side << ")\t" << '\t' << ob(orderbook) << '\t' << o(order) << "\tQuantity = " << quantity << "\tPrice = " << price << '\n';
+        stream << EVENT_NAME << "\t\t(" << order.type() << ", " << side << ")\t" << '\t' << ob(orderbook) << '\t' << o(order) << "\tQuantity = " << quantity << "\tPrice = " << price << '\n';
     }
 
     template <OrderType type, OrderSide side>
     void on_reduce_order(auto& orderbook, auto& order, Quantity quantity) const noexcept {
-        stream << EVENT_NAME << "\t\t(" << type << ",\t" << side << ")\t" << '\t' << ob(orderbook) << '\t' << o(order) << "\tQuantity = " << quantity << '\n';
+        stream << EVENT_NAME << "\t\t(" << type << ", " << side << ")\t" << '\t' << ob(orderbook) << '\t' << o(order) << "\tQuantity = " << quantity << '\n';
     }
 
     template <OrderSide side1, OrderSide side2>
     void on_match_order(auto& orderbook, auto& executing_order, auto& reducing_order) const noexcept {
-        stream << EVENT_NAME << "\t\t\t(" << side1 << ",\t" << side2 << ")\t" << '\t' << ob(orderbook) << '\t' << o(executing_order) << '\t' << o(reducing_order) << '\n';
+        stream << EVENT_NAME << "\t\t\t(" << side1 << ", " << side2 << ")\t" << '\t' << ob(orderbook) << '\t' << o(executing_order) << '\t' << o(reducing_order) << '\n';
     }
 
     template <OrderSide side>
     void on_update_stop_price(auto& orderbook, auto& order) const noexcept {
-        stream << EVENT_NAME << "\t\t\t(" << order.type() << ",\t" << side << ")\t" << '\t' << ob(orderbook) << '\t' << o(order) << '\n';
+        stream << EVENT_NAME << "\t\t\t(" << order.type() << ", " << side << ")\t" << '\t' << ob(orderbook) << '\t' << o(order) << '\n';
     }
 
     template <OrderType type, OrderSide side>
     void on_trigger_stop_order(auto& orderbook, auto& order) const noexcept {
-        stream << EVENT_NAME << "\t\t\t(" << type << ",\t" << side << ")\t" << '\t' << ob(orderbook) << '\t' << o(order) << '\n';
+        stream << EVENT_NAME << "\t\t\t(" << type << ", " << side << ")\t" << '\t' << ob(orderbook) << '\t' << o(order) << '\n';
     }
 };
 
