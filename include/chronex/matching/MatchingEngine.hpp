@@ -52,7 +52,7 @@ public:
 
     template <typename T>
     constexpr void add_existing_orderbook(T&& orderbook, const bool report = true) {
-        assert(!is_symbol_taken(orderbook.symbol()) &&
+        assert(!is_symbol_taken(orderbook.symbol_id()) &&
             "Symbol with the same ID already exists in the matching engine");
 
         auto symbol = orderbook.symbol();
@@ -71,7 +71,7 @@ public:
     }
 
     constexpr void remove_orderbook(Symbol symbol) noexcept {
-        assert(is_symbol_taken(symbol) && "No symbol with the given ID exists in the matching engine");
+        assert(is_symbol_taken(symbol.id) && "No symbol with the given ID exists in the matching engine");
 
         auto& orderbook = orderbook_at(symbol.id);
 
@@ -710,6 +710,7 @@ private:
                 return Quantity { 0 };
             }
 
+            // TODO change these names
             for (auto& order : level) {
                 auto needed = required - available;
                 auto quantity = calculate_matching_chain_quantity(order, needed, order.leaves_quantity());
@@ -986,17 +987,12 @@ private:
         return stop_trigger_price <= order.stop_price();
     }
 
-    [[nodiscard]] constexpr auto& orderbook_at(SymbolId id) noexcept {
-        assert(id.value < orderbooks().size() && "No orderbook with the given ID exists in the matching engine");
-        return orderbooks()[id.value];
-    }
-
     [[nodiscard]] constexpr bool is_symbol_taken(uint64_t id) const noexcept {
         return id < orderbooks().size() && orderbooks()[id].is_valid();
     }
 
-    [[nodiscard]] constexpr bool is_symbol_taken(const Symbol symbol) const noexcept {
-        return is_symbol_taken(symbol.id.value);
+    [[nodiscard]] constexpr bool is_symbol_taken(const SymbolId id) const noexcept {
+        return is_symbol_taken(id.value);
     }
 
     template <OrderSide side1>
