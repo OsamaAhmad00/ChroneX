@@ -409,6 +409,7 @@ private:
                     //  be an order which will execute (get fully filled and deleted), and the
                     //  other will be partially filled (reduced). Determine which side is
                     //  executed and which side is reduced.
+                    // TODO correct????
                     if (bid_it->leaves_quantity() > ask_it->leaves_quantity()) {
                         match_orders<OrderSide::BUY, OrderSide::SELL>(orderbook, bid_it, bid_level_it, ask_it, ask_level_it);
                     } else {
@@ -448,7 +449,9 @@ private:
     template <OrderSide side>
     constexpr void match_order(OrderBook& orderbook, Order& order) noexcept {
 
-        // This function doesn't remove the order from its container.
+        // This function doesn't remove an order from its container. The
+        //  passed order is standalone, preparing to be added into a level,
+        //  but being executed if there is a match first.
         // This keeps matching as long as it can with the opposite side,
         //  and the calling function will handle the rest accordingly.
         // This removes orders being matched from the opposite side.
@@ -695,14 +698,15 @@ private:
         try_link_limit_order<side>(orderbook, order_it);
     }
 
-    static constexpr Quantity calculate_matching_chain_quantity(Order& order, const Quantity needed, Quantity quantity) noexcept {
-        if (int(order.is_aon()) | int(needed < quantity)) {
+    static constexpr Quantity calculate_matching_chain_quantity(Order& order, const Quantity needed) noexcept {
+        auto order_quantity = order.leaves_quantity();
+        if (int(order.is_aon()) | int(order_quantity < needed)) {
             // quantity = min(order_it->leaves_quantity(), needed);
             // BUT, if the order is All-Or-None, then we must either
             //  match it as a whole or not proceed at all
-            quantity = needed;
+            return order_quantity;
         }
-        return quantity;
+        return needed;
     }
 
     template <OrderSide level_side>
@@ -719,7 +723,7 @@ private:
             // TODO change these names
             for (auto& order : level) {
                 auto needed = required - available;
-                auto quantity = calculate_matching_chain_quantity(order, needed, order.leaves_quantity());
+                auto quantity = calculate_matching_chain_quantity(order, needed);
                 available += quantity;
 
                 if (available == required) {
@@ -787,7 +791,7 @@ private:
 
             while (shorter_order_it != shorter_level_end) {
                 auto needed = required - available;
-                auto quantity = calculate_matching_chain_quantity(*shorter_order_it, needed, shorter_order_it->leaves_quantity());
+                auto quantity = calculate_matching_chain_quantity(*shorter_order_it, needed);
                 available += quantity;
 
                 if (required == available) {
@@ -842,10 +846,13 @@ private:
         //     ++level_it;
         // }
 
+        // The matching chain is already calculated.
+        // We don't need to keep checking for boundaries
+
         auto level_it = levels.begin();
         auto order_it = level_it->second.begin();
         while (volume > Quantity { 0 }) {
-            auto quantity = calculate_matching_chain_quantity(*order_it, order_it->leaves_quantity(), volume);
+            auto quantity = calculate_matching_chain_quantity(*order_it, volume);
 
             event_handler().template on_execute_order<side>(orderbook, *order_it, quantity, price);
 
