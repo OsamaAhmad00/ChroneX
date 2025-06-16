@@ -92,10 +92,10 @@ struct Price {
     uint64_t value;
     explicit constexpr Price(const uint64_t _value) noexcept : value(_value) { }
     constexpr auto operator<=>(const Price &) const noexcept = default;
-    constexpr Price& operator+=(const Price &other) noexcept { value += other.value; return *this; }
-    constexpr Price& operator-=(const Price &other) noexcept { value -= other.value; return *this; }
-    constexpr Price operator+(const Price &other) const noexcept { return Price{ value + other.value }; }
-    constexpr Price operator-(const Price &other) const noexcept { return Price{ value - other.value }; }
+    constexpr Price& operator+=(const Price &other) noexcept { value = value + other.value; return *this; }
+    constexpr Price& operator-=(const Price &other) noexcept { value = value - other.value; return *this; }
+    constexpr Price operator+(const Price &other) const noexcept { return Price{ safe_add(value, other.value) }; }
+    constexpr Price operator-(const Price &other) const noexcept { return Price{ safe_sub(value, other.value) }; }
 
     constexpr static Price invalid() noexcept { return Price { std::numeric_limits<decltype(value)>::max() }; }
     constexpr static Price max() noexcept { return Price { std::numeric_limits<decltype(value)>::max() - 1 }; }
@@ -106,10 +106,10 @@ struct Quantity {
     uint64_t value;
     explicit constexpr Quantity(const uint64_t _value) noexcept : value(_value) { }
     constexpr auto operator<=>(const Quantity &) const noexcept = default;
-    constexpr Quantity& operator+=(const Quantity &other) noexcept { value += other.value; return *this; }
-    constexpr Quantity& operator-=(const Quantity &other) noexcept { value -= other.value; return *this; }
-    constexpr Quantity operator+(const Quantity &other) const noexcept { return Quantity{ value + other.value }; }
-    constexpr Quantity operator-(const Quantity &other) const noexcept { return Quantity{ value - other.value }; }
+    constexpr Quantity& operator+=(const Quantity &other) noexcept { value = value + other.value; return *this; }
+    constexpr Quantity& operator-=(const Quantity &other) noexcept { value = value - other.value; return *this; }
+    constexpr Quantity operator+(const Quantity &other) const noexcept { return Quantity{ safe_add(value, other.value) }; }
+    constexpr Quantity operator-(const Quantity &other) const noexcept { return Quantity{ safe_sub(value, other.value) }; }
 
     constexpr static Quantity max() noexcept { return Quantity { std::numeric_limits<decltype(value)>::max() - 1 }; }
     constexpr static Quantity invalid() noexcept { return Quantity { std::numeric_limits<decltype(value)>::max() }; }
