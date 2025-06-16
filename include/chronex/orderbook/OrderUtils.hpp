@@ -102,21 +102,6 @@ struct Price {
     constexpr static Price min() noexcept { return Price { std::numeric_limits<decltype(value)>::min() }; }
 };
 
-struct Slippage : public Price {
-    template <typename Op>
-    [[nodiscard]] constexpr Price slippage_price(const Price price) const noexcept {
-        return Op { } (price, Price { value });
-    }
-
-    [[nodiscard]] constexpr Price buy_slippage_price(const Price price) const noexcept {
-        return slippage_price<std::plus<>>(price);
-    }
-
-    [[nodiscard]] constexpr Price sell_slippage_price(const Price price) const noexcept {
-        return slippage_price<std::minus<>>(price);
-    }
-};
-
 struct Quantity {
     uint64_t value;
     explicit constexpr Quantity(const uint64_t _value) noexcept : value(_value) { }
