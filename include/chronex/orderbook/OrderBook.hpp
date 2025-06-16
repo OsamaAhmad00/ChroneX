@@ -170,6 +170,7 @@ public:
             event_handler().template on_remove_level<type, side>(*this, level_price);
             auto& price_levels = levels<type, side>();
             ++valid_level_it;
+            valid_order_it = valid_level_it->second.begin();
             price_levels.remove_level(level_it);
         }
 

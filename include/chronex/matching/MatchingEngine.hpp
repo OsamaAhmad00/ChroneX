@@ -463,9 +463,9 @@ private:
 
         while (!opposite.is_empty()) {
             auto level_it = opposite.begin();
+            auto& [level_price, level] = *level_it;
 
             // Make sure there are crossed orders first
-            auto level_price = level_it->first;
             if (!prices_cross<side>(order_it->price(), level_price)) break;
 
             // No short-circuit behavior
@@ -476,8 +476,9 @@ private:
             // match_order_with_level<side>(orderbook, order_it, level);
 
             // TODO refactor here
-            while (int(level_it != opposite.end() && int(!level_it->second.is_empty()))) {
-                auto other_it = level_it->second.begin();
+            int level_size = static_cast<int>(level.size());
+            while (level_size--) {
+                auto other_it = level.begin();
                 auto& other = *other_it;
 
                 // Either this order is fully "executing" or the target order `order` is executing.
@@ -498,12 +499,12 @@ private:
                 // TODO why not order.price()?
                 auto execution_price = other.price();
 
-                // TODO make sure of the order type
-                // This will report the execution of other
-                std::tie(other_it, level_it) = orderbook.template execute_quantity<OrderType::LIMIT, opposite_side_value>(other_it, level_it, quantity, execution_price);
-
                 order.execute_quantity(quantity);
                 event_handler().template on_execute_order<side>(orderbook, order, quantity, execution_price);
+
+                // TODO make sure of the order type
+                // This will report the execution of other
+                (void)orderbook.template execute_quantity<OrderType::LIMIT, opposite_side_value>(other_it, level_it, quantity, execution_price);
 
                 if (order.is_fully_filled()) {
                     return;
