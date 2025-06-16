@@ -1,4 +1,4 @@
-add_executable(OrderbookTests Tests.cpp)
+add_executable(OrderbookTests Tests.cpp ${CHRONEX_SOURCES})
 
 target_compile_options(OrderbookTests PRIVATE -Wall -Werror -Wextra -Wpedantic -Wconversion -Wshadow)
 

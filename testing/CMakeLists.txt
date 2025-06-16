@@ -8,5 +8,6 @@ include_directories(
 add_subdirectory(googletest)
 enable_testing()
 
+add_subdirectory(matching-engine)
 add_subdirectory(orderbook)
 add_subdirectory(data-structures)

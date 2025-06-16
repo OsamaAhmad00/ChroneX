@@ -1,4 +1,4 @@
-add_executable(DataStructuresTests LinkedList.cpp)
+add_executable(DataStructuresTests LinkedList.cpp ${CHRONEX_SOURCES})
 
 target_compile_options(DataStructuresTests PRIVATE -Wall -Werror -Wextra -Wpedantic -Wconversion -Wshadow)
 

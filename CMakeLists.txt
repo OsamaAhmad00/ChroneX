@@ -14,12 +14,16 @@ if(UNIX)
     # set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=thread")
 endif()
 
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g3")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g3 -D_DEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
+
+set(CHRONEX_SOURCES
+    ${CMAKE_SOURCE_DIR}/src/orderbook/Order.cpp
+)
 
 add_executable(ChroneX
     main.cpp
-    src/orderbook/Order.cpp
+    ${CHRONEX_SOURCES}
 )
 
 target_compile_options(ChroneX PRIVATE -Wall -Werror -Wextra -Wpedantic -Wconversion -Wshadow)
