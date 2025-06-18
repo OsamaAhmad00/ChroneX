@@ -667,16 +667,15 @@ private:
 
     template <OrderType type, OrderSide side, typename T>
     constexpr void trigger_stop_order(OrderBook& orderbook, OrderIterator order_it, T level_it) noexcept {
+        event_handler().template on_trigger_stop_order<type, side>(orderbook, *order_it);
+
         order_it->template mark_triggered<type>();
         // TODO remove this and have a way to handle triggered stop orders accordingly
         if (order_it->time_in_force() != TimeInForce::FOK) {
             order_it->set_time_in_force(TimeInForce::IOC);
         }
 
-        event_handler().template on_trigger_stop_order<type, side>(orderbook, *order_it);
-
         // TODO call add_market_order?
-
         match_market_order<side>(orderbook, *order_it);
 
         // Remove only after we're done using it
