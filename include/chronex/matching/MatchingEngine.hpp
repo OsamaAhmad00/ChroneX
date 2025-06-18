@@ -681,7 +681,6 @@ private:
         // Remove only after we're done using it
         // Remove the order from its stop order level and create a market
         event_handler().template on_remove_order<type, side>(orderbook, *order_it);
-        orders().erase(order_it->id());
         orderbook.template remove_order<type, side>(order_it, level_it);
     }
 
