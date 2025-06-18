@@ -980,14 +980,14 @@ private:
         }
     }
 
-    template <OrderSide level_side>
+    template <OrderSide opposite_side>
     constexpr void try_match_aon(OrderBook& orderbook, Order& order) noexcept {
-        auto chain_volume = calculate_matching_chain<opposite_side<level_side>()>(orderbook, order.price(), order.leaves_quantity());
+        auto chain_volume = calculate_matching_chain<opposite_side>(orderbook, order.price(), order.leaves_quantity());
         if (chain_volume == Quantity { 0 }) return;
-        execute_matching_chain<level_side>(orderbook, order.price(), chain_volume);
-        event_handler().template on_execute_order<level_side>(orderbook, order, order.leaves_quantity(), order.price());
+        execute_matching_chain<opposite_side>(orderbook, order.price(), chain_volume);
+        event_handler().template on_execute_order<opposite_side>(orderbook, order, order.leaves_quantity(), order.price());
         // TODO remove this
-        orderbook.template update_last_and_matching_price<level_side>(order.price());
+        orderbook.template update_last_and_matching_price<opposite_side>(order.price());
         // Doesn't remove, just marks it as fully filled
         order.execute_quantity(order.leaves_quantity());
     }
