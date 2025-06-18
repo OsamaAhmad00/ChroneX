@@ -187,11 +187,6 @@ public:
         return execute_quantity<type, side>(order_it, quantity, order_it->price());
     }
 
-    constexpr void reset_matching_prices() noexcept {
-        _matching_bid_price = Price::min();
-        _matching_ask_price = Price::max();
-    }
-
     template <OrderSide side>
     constexpr Price calculate_trailing_stop_price(Order& order) noexcept {
         auto market_price = get_market_price<opposite_side<side>()>();
@@ -216,19 +211,24 @@ public:
     template <OrderSide side>
     [[nodiscard]] constexpr Price get_market_price() const noexcept {
         if constexpr (side == OrderSide::BUY) {
-            return get_price<side>(_matching_bid_price);
+            auto best_price = bids().is_empty() ? Price::min() : bids().begin()->first;
+            return std::max(_matching_bid_price, best_price);
         } else {
-            return get_price<side>(_matching_ask_price);
+            auto best_price = asks().is_empty() ? Price::max() : asks().begin()->first;
+            return std::min(_matching_ask_price, best_price);
         }
     }
 
     template <OrderSide side>
     [[nodiscard]] constexpr Price get_market_trailing_stop_price() const noexcept {
-        // TODO remove duplication here
+        // TODO remove the duplication
+        // Take care, here is min then max, where as for market, it's max then min
         if constexpr (side == OrderSide::BUY) {
-            return get_price<side>(_last_bid_price);
+            auto best_price = bids().is_empty() ? Price::min() : bids().begin()->first;
+            return std::min(_last_bid_price, best_price);
         } else {
-            return get_price<side>(_last_ask_price);
+            auto best_price = asks().is_empty() ? Price::max() : asks().begin()->first;
+            return std::max(_last_ask_price, best_price);
         }
     }
 
@@ -272,6 +272,11 @@ public:
         } else {
             _trailing_ask_price = price;
         }
+    }
+
+    constexpr void reset_matching_prices() noexcept {
+        _matching_bid_price = Price::min();
+        _matching_ask_price = Price::max();
     }
 
     template <OrderType type, OrderSide side, typename T>
@@ -332,17 +337,6 @@ public:
     ~OrderBook() { clear(); }
 
 private:
-
-    template <OrderSide side>
-    [[nodiscard]] constexpr Price get_price(const Price price) const noexcept {
-        if constexpr (side == OrderSide::BUY) {
-            auto best_price = bids().is_empty() ? Price::min() : bids().begin()->first;
-            return std::max(price, best_price);
-        } else {
-            auto best_price = asks().is_empty() ? Price::max() : asks().begin()->first;
-            return std::min(price, best_price);
-        }
-    }
 
     constexpr void add_order_to_map(OrderId id, OrderIterator order_it) noexcept {
         assert(!orders().contains(id) && "Order with the same ID already exists in the order book");
