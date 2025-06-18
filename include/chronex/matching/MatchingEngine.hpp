@@ -580,11 +580,9 @@ private:
     template <OrderType type, OrderSide side>
     constexpr auto try_trigger_stop_order_level(OrderBook& orderbook, const Price stop_price) noexcept {
         // TODO rename this function
-        auto& levels = orderbook.template bids<type>();
+        auto& levels = orderbook.template levels<type, side>();
         if (levels.is_empty()) return StopOrdersAction::NOT_TRIGGERED;
-        auto level_it = levels.begin();
-        auto price = level_it->first;
-        return try_trigger_stop_orders<type, side>(orderbook, level_it, price, stop_price);
+        return try_trigger_stop_orders<type, side>(orderbook, levels.begin(), stop_price);
     }
 
     template <OrderSide side>
