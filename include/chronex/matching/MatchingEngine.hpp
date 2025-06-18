@@ -1002,9 +1002,7 @@ private:
         constexpr auto opposite = opposite_side<side>();
         auto stop_trigger_price = orderbook.template get_market_price<opposite>();
 
-        if constexpr (side == OrderSide::BUY)
-            return stop_trigger_price >= order.stop_price();
-        return stop_trigger_price <= order.stop_price();
+        return prices_cross<opposite>(order.stop_price(), stop_trigger_price);
     }
 
     [[nodiscard]] constexpr bool is_symbol_taken(uint64_t id) const noexcept {
@@ -1016,7 +1014,8 @@ private:
     }
 
     template <OrderSide side1>
-    constexpr bool prices_cross(Price p1, Price p2) {
+    static constexpr bool prices_cross(Price p1, Price p2) noexcept {
+        // TODO consider uses of this method again. The passed template arg and method args are not clear
         if constexpr (side1 == OrderSide::BUY) {
             return p1 >= p2;
         } else {
