@@ -231,9 +231,6 @@ public:
         // TODO ignore return value?
         orderbook.template reduce_order<type, side>(order_it, level_it, quantity);
 
-        if (is_matching_enabled())
-            match(orderbook);
-
         perform_post_order_processing(orderbook);
     }
 
