@@ -48,7 +48,7 @@ constexpr auto orders_count(const OrderBook& orderbook) {
     return accumulate_orders_count<OrderType::LIMIT>(orderbook);
 }
 
-constexpr auto volume(const OrderBook& orderbook) {
+constexpr auto orders_volume(const OrderBook& orderbook) {
     return accumulate_total_volume<OrderType::LIMIT>(orderbook);
 }
 
@@ -96,7 +96,7 @@ TEST_F(MatchingEngineTest, AutomaticMatchingMarketOrder) {
     matching_engine.add_order(Order::buy_limit(8, 0, 30, 20));
     matching_engine.add_order(Order::buy_limit(9, 0, 30, 30));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(9, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(180, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(180, 0));
 
     // Add sell limit orders
     matching_engine.add_order(Order::sell_limit(10, 0, 40, 30));
@@ -109,28 +109,28 @@ TEST_F(MatchingEngineTest, AutomaticMatchingMarketOrder) {
     matching_engine.add_order(Order::sell_limit(17, 0, 60, 20));
     matching_engine.add_order(Order::sell_limit(18, 0, 60, 10));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(9, 9));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(180, 180));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(180, 180));
 
     // Automatic matching on add market order
     matching_engine.add_order(Order::sell_market(19, 0, 15));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(8, 9));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(165, 180));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(165, 180));
 
     // Automatic matching on add market order with slippage
     matching_engine.add_order(Order::sell_market(20, 0, 100, 0));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(6, 9));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(120, 180));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(120, 180));
     matching_engine.add_order(Order::buy_market(21, 0, 160, 20));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(6, 2));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(120, 20));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(120, 20));
 
     // Automatic matching on add market order with reaching end of the book
     matching_engine.add_order(Order::sell_market(22, 0, 1000));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 2));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 20));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 20));
     matching_engine.add_order(Order::buy_market(23, 0, 1000));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
 }
 
 // Test case: Automatic matching - limit order
@@ -195,12 +195,12 @@ TEST_F(MatchingEngineTest, AutomaticMatchingIOCLimitOrder) {
     matching_engine.add_order(Order::buy_limit(2, 0, 20, 20));
     matching_engine.add_order(Order::buy_limit(3, 0, 30, 30));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(3, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(60, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(60, 0));
 
     // Automatic matching 'Immediate-Or-Cancel' order
     matching_engine.add_order(Order::sell_limit(4, 0, 10, 100, TimeInForce::IOC));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
 }
 
 // Test case: Automatic matching - Fill-Or-Kill limit order (filled)
@@ -210,12 +210,12 @@ TEST_F(MatchingEngineTest, AutomaticMatchingFOKLimitOrderFilled) {
     matching_engine.add_order(Order::buy_limit(2, 0, 20, 20));
     matching_engine.add_order(Order::buy_limit(3, 0, 30, 30));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(3, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(60, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(60, 0));
 
     // Automatic matching 'Fill-Or-Kill' order
     matching_engine.add_order(Order::sell_limit(4, 0, 10, 40, TimeInForce::FOK));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(2, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(20, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(20, 0));
 }
 
 // Test case: Automatic matching - Fill-Or-Kill limit order (killed)
@@ -225,12 +225,12 @@ TEST_F(MatchingEngineTest, AutomaticMatchingFOKLimitOrderKilled) {
     matching_engine.add_order(Order::buy_limit(2, 0, 20, 20));
     matching_engine.add_order(Order::buy_limit(3, 0, 30, 30));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(3, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(60, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(60, 0));
 
     // Automatic matching 'Fill-Or-Kill' order
     matching_engine.add_order(Order::sell_limit(4, 0, 10, 100, TimeInForce::FOK));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(3, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(60, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(60, 0));
 }
 
 // Test case: Automatic matching - All-Or-None limit order several levels full matching
@@ -241,12 +241,12 @@ TEST_F(MatchingEngineTest, AutomaticMatchingAONLimitOrderFullMatching) {
     matching_engine.add_order(Order::buy_limit(3, 0, 30, 30, TimeInForce::AON));
     matching_engine.add_order(Order::buy_limit(4, 0, 30, 10));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(4, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(80, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(80, 0));
 
     // Automatic matching 'All-Or-None' order
     matching_engine.add_order(Order::sell_limit(5, 0, 20, 80, TimeInForce::AON));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
 }
 
 // Test case: Automatic matching - All-Or-None limit order several levels partial matching
@@ -257,17 +257,17 @@ TEST_F(MatchingEngineTest, AutomaticMatchingAONLimitOrderPartialMatching) {
     matching_engine.add_order(Order::buy_limit(3, 0, 30, 30, TimeInForce::AON));
     matching_engine.add_order(Order::buy_limit(4, 0, 30, 10));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(4, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(80, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(80, 0));
 
     // Place huge 'All-Or-None' order in the order book with arbitrage price
     matching_engine.add_order(Order::sell_limit(5, 0, 20, 100, TimeInForce::AON));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(4, 1));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(80, 100));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(80, 100));
 
     // Automatic matching 'All-Or-None' order
     matching_engine.add_order(Order::buy_limit(6, 0, 20, 20, TimeInForce::AON));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
 }
 
 // Test case: Automatic matching - All-Or-None limit order complex matching
@@ -280,12 +280,12 @@ TEST_F(MatchingEngineTest, AutomaticMatchingAONLimitOrderComplexMatching) {
     matching_engine.add_order(Order::buy_limit(5, 0, 10, 5));
     matching_engine.add_order(Order::buy_limit(6, 0, 10, 20, TimeInForce::AON));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(3, 3));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(45, 30));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(45, 30));
 
     // Automatic matching 'All-Or-None' order
     matching_engine.add_order(Order::sell_limit(7, 0, 10, 15));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
 }
 
 // Test case: Automatic matching - Hidden limit order
@@ -295,13 +295,13 @@ TEST_F(MatchingEngineTest, AutomaticMatchingHiddenLimitOrder) {
     matching_engine.add_order(Order::buy_limit(2, 0, 20, 20, TimeInForce::GTC, 10));
     matching_engine.add_order(Order::buy_limit(3, 0, 30, 30, TimeInForce::GTC, 15));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(3, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(60, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(60, 0));
     EXPECT_EQ(visible_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(30, 0));
 
     // Automatic matching with market order
     matching_engine.add_order(Order::sell_market(4, 0, 55));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(1, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(5, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(5, 0));
     EXPECT_EQ(visible_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(5, 0));
 }
 
@@ -312,14 +312,14 @@ TEST_F(MatchingEngineTest, AutomaticMatchingStopOrder) {
     matching_engine.add_order(Order::buy_limit(2, 0, 20, 20));
     matching_engine.add_order(Order::buy_limit(3, 0, 30, 30));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(3, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(60, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(60, 0));
     EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
     EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
 
     // Automatic matching with stop order
     matching_engine.add_order(Order::sell_stop(4, 0, 40, 60));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
     EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
     EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
 
@@ -328,14 +328,14 @@ TEST_F(MatchingEngineTest, AutomaticMatchingStopOrder) {
     matching_engine.add_order(Order::buy_stop(6, 0, 40, 40));
     matching_engine.add_order(Order::sell_limit(7, 0, 60, 60));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 2));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 90));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 90));
     EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(1, 0));
     EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(40, 0));
 
     // Automatic matching with limit order
     matching_engine.add_order(Order::buy_limit(8, 0, 40, 40));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(1, 1));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(10, 20));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(10, 20));
     EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
     EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
 }
@@ -344,13 +344,13 @@ TEST_F(MatchingEngineTest, AutomaticMatchingStopOrder) {
 TEST_F(MatchingEngineTest, AutomaticMatchingStopOrderEmptyMarket) {
     matching_engine.add_order(Order::sell_stop(1, 0, 10, 10));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
     EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
     EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
 
     matching_engine.add_order(Order::buy_stop(2, 0, 20, 20));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
     EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
     EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
 }
@@ -362,19 +362,19 @@ TEST_F(MatchingEngineTest, AutomaticMatchingStopLimitOrder) {
     matching_engine.add_order(Order::buy_limit(2, 0, 20, 20));
     matching_engine.add_order(Order::buy_limit(3, 0, 30, 30));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(3, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(60, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(60, 0));
     EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
     EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
 
     // Automatic matching with stop-limit orders
     matching_engine.add_order(Order::sell_stop_limit(4, 0, 40, 20, 40));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(2, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(20, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(20, 0));
     EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
     EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
     matching_engine.add_order(Order::sell_stop_limit(5, 0, 30, 10, 30));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 1));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 10));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 10));
     EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
     EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
 
@@ -382,14 +382,14 @@ TEST_F(MatchingEngineTest, AutomaticMatchingStopLimitOrder) {
     matching_engine.add_order(Order::buy_stop_limit(6, 0, 20, 10, 10));
     matching_engine.add_order(Order::sell_limit(7, 0, 20, 20));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 2));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 30));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 30));
     EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(1, 0));
     EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(10, 0));
 
     // Automatic matching with limit order
     matching_engine.add_order(Order::buy_limit(7, 0, 20, 30));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(1, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(10, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(10, 0));
     EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
     EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
 }
@@ -398,14 +398,14 @@ TEST_F(MatchingEngineTest, AutomaticMatchingStopLimitOrder) {
 TEST_F(MatchingEngineTest, AutomaticMatchingStopLimitOrderEmptyMarket) {
     matching_engine.add_order(Order::sell_stop_limit(1, 0, 10, 30, 30));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 1));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 30));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 30));
     EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
     EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
     matching_engine.remove_order(OrderId{ 1 });
 
     matching_engine.add_order(Order::buy_stop_limit(2, 0, 30, 10, 10));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(1, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(10, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(10, 0));
     EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
     EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
     matching_engine.remove_order(OrderId{ 2 });
@@ -491,6 +491,8 @@ TEST_F(MatchingEngineTest, AutomaticMatchingStopLimitOrderEmptyMarket) {
 
 // Test case: Manual matching
 TEST_F(MatchingEngineTest, ManualMatching) {
+    matching_engine.disable_matching();
+
     // Add buy limit orders
     matching_engine.add_order(Order::buy_limit(1, 0, 10, 10));
     matching_engine.add_order(Order::buy_limit(2, 0, 10, 20));
@@ -502,7 +504,7 @@ TEST_F(MatchingEngineTest, ManualMatching) {
     matching_engine.add_order(Order::buy_limit(8, 0, 30, 20));
     matching_engine.add_order(Order::buy_limit(9, 0, 30, 30));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(9, 0));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(180, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(180, 0));
 
     // Add sell limit orders
     matching_engine.add_order(Order::sell_limit(10, 0, 10, 30));
@@ -515,12 +517,12 @@ TEST_F(MatchingEngineTest, ManualMatching) {
     matching_engine.add_order(Order::sell_limit(17, 0, 30, 20));
     matching_engine.add_order(Order::sell_limit(18, 0, 30, 10));
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(9, 9));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(180, 185));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(180, 185));
 
     // Perform manual matching
     matching_engine.match();
     EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(3, 4));
-    EXPECT_EQ(volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(60, 65));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(60, 65));
 }
 
 }
