@@ -623,42 +623,41 @@ private:
         return try_trigger_stop_orders<type, level_side>(orderbook, levels.begin(), stop_price);
     }
 
+    template <OrderType type>
+    constexpr static bool is_equal(OrderType other) noexcept {
+        const auto a = static_cast<uint8_t>(type);
+        const auto b = static_cast<uint8_t>(other);
+        return (a & b) == b;
+    }
+
     template <OrderType type, OrderSide level_side, typename T>
-    constexpr StopOrdersAction try_trigger_stop_orders(OrderBook& orderbook, T level_it, const Price level_price, const Price stop_price) noexcept {
-        bool should_trigger = prices_cross<level_side>(level_price, stop_price);
+    constexpr StopOrdersAction try_trigger_stop_orders(OrderBook& orderbook, T level_it, const Price stop_price) noexcept {
+
+        if constexpr (!is_stop(type)) {
+            assert(false && "Unsupported order type");
+        }
+
+        auto level_price = level_it->first;
+        bool should_trigger = prices_cross<level_side>(stop_price, level_price);
 
         auto& level = level_it->second;
 
         if (int(!should_trigger) | int(level.is_empty())) return StopOrdersAction::NOT_TRIGGERED;
 
-        while (!level.is_empty()) {
+        auto size = level.size();
+        while (size--) {
             // TODO you can reduce this to two checks only, using `type`, and whether it's a limit order or not
             auto order_it = level.begin();
-            switch (order_it->type()) {
-                case OrderType::STOP:
-                    trigger_stop_order<OrderType::STOP, level_side>(orderbook, order_it, level_it);
-                    break;
-                case OrderType::TRAILING_STOP:
-                    trigger_stop_order<OrderType::TRAILING_STOP, level_side>(orderbook, order_it, level_it);
-                    break;
-                case OrderType::STOP_LIMIT:
-                    trigger_stop_limit_order<OrderType::STOP_LIMIT, level_side>(orderbook, order_it, level_it);
-                    break;
-                case OrderType::TRAILING_STOP_LIMIT:
-                    trigger_stop_limit_order<OrderType::TRAILING_STOP_LIMIT, level_side>(orderbook, order_it, level_it);
-                    break;
-                default:
-                    assert(false && "Unsupported order type");
-            }
-
-            // TODO same type for all orders in level? No? Each levels struct contains both market and limit stop orders
-            // if constexpr (is_limit(type)) {
-            //     trigger_stop_limit_order<type, level_side>(orderbook, order_it);
-            // } else {
-            //     trigger_stop_order<type, level_side>(orderbook, order_it);
-            // }
-
-            if constexpr (!is_stop(type)) {
+            auto t = order_it->type();
+            if (is_equal<OrderType::STOP>(t)) {
+                trigger_stop_order<OrderType::STOP, level_side>(orderbook, order_it, level_it);
+            } else if (is_equal<OrderType::TRAILING_STOP>(t)) {
+                trigger_stop_order<OrderType::TRAILING_STOP, level_side>(orderbook, order_it, level_it);
+            } else if (is_equal<OrderType::STOP_LIMIT>(t)) {
+                trigger_stop_limit_order<OrderType::STOP_LIMIT, level_side>(orderbook, order_it, level_it);
+            } else if (is_equal<OrderType::TRIGGERED_TRAILING_STOP_LIMIT>(t)) {
+                trigger_stop_limit_order<OrderType::TRAILING_STOP_LIMIT, level_side>(orderbook, order_it, level_it);
+            } else {
                 assert(false && "Unsupported order type");
             }
         }
