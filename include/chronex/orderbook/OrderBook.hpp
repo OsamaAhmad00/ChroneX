@@ -99,7 +99,13 @@ public:
 
         assert(!orders().contains(id) && "Order with the same ID already exists in the order book");
 
-        auto level_it = get_or_add_level<type, side>(order.price());
+        auto level_it = [&] {
+            if constexpr (is_stop(type)) {
+                return get_or_add_level<type, side>(order.stop_price());
+            } else {
+                return get_or_add_level<type, side>(order.price());
+            }
+        }();
 
         if constexpr (should_report()) {
             event_handler().template on_add_order<type, side>(*this, order);
