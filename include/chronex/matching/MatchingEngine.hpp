@@ -371,12 +371,16 @@ private:
     }
 
     constexpr void match(OrderBook& orderbook) {
+        // TODO Don't call .begin() a lot if possible. Remember that different method
+        //  can alter the `levels`, which makes using the same begin problematic. Can
+        //  you return the next valid level from the invoked methods?
 
-        #define MATCH_AON(ORDERBOOK, PRICE) \
-            Quantity chain_volume = calculate_matching_chain(ORDERBOOK);\
+        #define MATCH_AON(PRICE) \
+            Quantity chain_volume = calculate_matching_chain(orderbook);\
             if (chain_volume.value == 0) return;\
-            execute_matching_chain<OrderSide::BUY>(ORDERBOOK, PRICE, chain_volume);\
-            execute_matching_chain<OrderSide::SELL>(ORDERBOOK, PRICE, chain_volume);\
+            auto price = PRICE;\
+            execute_matching_chain<OrderSide::BUY>(orderbook, bid_it, bid_level_it, price, chain_volume);\
+            execute_matching_chain<OrderSide::SELL>(orderbook, ask_it, ask_level_it, price, chain_volume);\
 
         while (true) {
             while (int(!orderbook.bids().is_empty()) & int(!orderbook.asks().is_empty())) {
@@ -398,9 +402,9 @@ private:
                 // TODO pass the already fetched begin() instead of letting
                 //  other methods fetch it again?
                 if (bid_it->is_aon()) {
-                    MATCH_AON(orderbook, bid_it->price());
+                    MATCH_AON(bid_it->price());
                 } else if (ask_it->is_aon()) {
-                    MATCH_AON(orderbook, ask_it->price());
+                    MATCH_AON(ask_it->price());
                 } else {
                     // If the quantity is the same, it doesn't matter which branch is executed.
                     // The point here is that if the quantities are not equal, then there will
@@ -409,16 +413,16 @@ private:
                     //  executed and which side is reduced.
                     // TODO correct????
                     if (bid_it->leaves_quantity() > ask_it->leaves_quantity()) {
-                        match_orders<OrderSide::BUY, OrderSide::SELL>(orderbook, bid_it, bid_level_it, ask_it, ask_level_it);
+                        match_orders<OrderSide::BUY, OrderSide::SELL>(orderbook, bid_it, orderbook.bids().begin(), ask_it, orderbook.asks().begin());
                     } else {
-                        match_orders<OrderSide::SELL, OrderSide::BUY>(orderbook, ask_it, ask_level_it, bid_it, bid_level_it);
+                        match_orders<OrderSide::SELL, OrderSide::BUY>(orderbook, ask_it, orderbook.asks().begin(), bid_it, orderbook.bids().begin());
                     }
                 }
 
                 // TODO make sure of the OrderType template param
                 // At this point, we must've had executed at least one order. Check for stop orders
-                try_trigger_stop_orders<OrderType::STOP, OrderSide::BUY>(orderbook, bid_price);
-                try_trigger_stop_orders<OrderType::STOP, OrderSide::SELL>(orderbook, ask_price);
+                try_trigger_stop_orders<OrderType::STOP, OrderSide::BUY> (orderbook);
+                try_trigger_stop_orders<OrderType::STOP, OrderSide::SELL>(orderbook);
             }
 
             // Trailing stop orders modify the stop price, and this is not for free.
