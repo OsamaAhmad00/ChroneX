@@ -615,13 +615,12 @@ private:
     }
 
     template <OrderType type, OrderSide level_side>
-    constexpr StopOrdersAction try_trigger_stop_orders(OrderBook& orderbook, const Price level_price) noexcept {
+    constexpr StopOrdersAction try_trigger_stop_orders(OrderBook& orderbook) noexcept {
         constexpr auto opposite = opposite_side<level_side>();
         auto stop_price = orderbook.template get_market_price<opposite>();
         auto& levels = orderbook.template levels<type, level_side>();
-        auto level_it = levels.find(level_price);
-        if (level_it == levels.end()) return StopOrdersAction::NOT_TRIGGERED;
-        return try_trigger_stop_orders<type, level_side>(orderbook, level_it, level_price, stop_price);
+        if (levels.is_empty()) return StopOrdersAction::NOT_TRIGGERED;
+        return try_trigger_stop_orders<type, level_side>(orderbook, levels.begin(), stop_price);
     }
 
     template <OrderType type, OrderSide level_side, typename T>
