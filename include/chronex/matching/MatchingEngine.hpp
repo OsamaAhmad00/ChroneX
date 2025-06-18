@@ -940,8 +940,14 @@ private:
         return false;
     }
 
-    template <OrderType type, OrderSide side, typename T>
-    constexpr void trigger_new_stop_order(OrderBook& orderbook, T&& order) noexcept {
+    // TODO remove all forwarding references for orders. You can't copy
+    //  orders, and the only way you should get them is by rvalue ref or
+    //  iterator. At the same time, don't "move" it too much, since this
+    //  is just copying the order. Figure out a way to reduce copying.
+
+    template <OrderType type, OrderSide side>
+    constexpr void trigger_new_stop_order(OrderBook& orderbook, Order&& order) noexcept {
+        constexpr auto triggered_type = get_triggered<type>();
         order.template mark_triggered<type>();
 
         if constexpr (is_market(type)) {
@@ -951,12 +957,12 @@ private:
 
         event_handler().template on_trigger_stop_order<type, side>(orderbook, order);
 
-        if constexpr (is_market(type)) {
+        if constexpr (is_market(triggered_type)) {
             match_market_order<side>(orderbook, order);
-            event_handler().on_delete_order(order);
-        } else if constexpr (is_limit(type)) {
+            event_handler().template on_remove_order<triggered_type, side>(orderbook, order);
+        } else if constexpr (is_limit(triggered_type)) {
             match_limit_order<side>(orderbook, order);
-            try_add_limit_order<type, side>(orderbook, order);
+            try_add_limit_order<triggered_type, side>(orderbook, std::move(order));
         } else {
             assert(false && "Unsupported order type");
         }
