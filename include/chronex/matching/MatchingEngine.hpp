@@ -328,6 +328,7 @@ private:
             quantity = std::min(quantity, order_it->leaves_quantity());
             auto level_it = orderbook.template levels<type, side>().find(order_it->price());
             (void)orderbook.template execute_quantity<type, side>(order_it, level_it, quantity, price);
+            orderbook.reset_matching_prices();
         };
 
         resolve_type_and_side_then_call(*order_it, func);
@@ -440,7 +441,10 @@ private:
         //  side or not, and if so, delete it without checking for full execution
         // TODO ignore the new order_it and level_it?
         (void)orderbook.template execute_quantity<OrderType::LIMIT, executing_side>(executing_order, executing_level_it, quantity, price);
+        orderbook.reset_matching_prices();
+
         (void)orderbook.template execute_quantity<OrderType::LIMIT, reducing_side >(reducing_order , reducing_level_it , quantity, price);
+        perform_post_order_processing(orderbook);
     }
 
     template <OrderSide side>
@@ -494,12 +498,14 @@ private:
                 // TODO why not order.price()?
                 auto execution_price = other.price();
 
-                order.execute_quantity(quantity);
-                event_handler().template on_execute_order<side>(orderbook, order, quantity, execution_price);
-
                 // TODO make sure of the order type
                 // This will report the execution of other
                 (void)orderbook.template execute_quantity<OrderType::LIMIT, opposite_side_value>(other_it, level_it, quantity, execution_price);
+                orderbook.reset_matching_prices();
+
+                order.execute_quantity(quantity);
+                event_handler().template on_execute_order<side>(orderbook, order, quantity, execution_price);
+                orderbook.template update_last_and_matching_price<side>(execution_price);
 
                 if (order.is_fully_filled()) {
                     return;
@@ -855,6 +861,7 @@ private:
 
             // execute_quantity is likely to delete the order and possibly the level
             std::tie(order_it, level_it) = orderbook.template execute_quantity<OrderType::LIMIT, side>(order_it, level_it, quantity, price);
+            orderbook.reset_matching_prices();
 
             volume -= quantity;
         }
@@ -919,7 +926,7 @@ private:
     }
 
     constexpr void perform_post_order_processing(OrderBook& orderbook) noexcept {
-        // TODO check where this is added redundently
+        // TODO check where this is added redundantly
         if (is_matching_enabled()) {
             match(orderbook);
         }
