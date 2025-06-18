@@ -411,8 +411,7 @@ private:
                     //  be an order which will execute (get fully filled and deleted), and the
                     //  other will be partially filled (reduced). Determine which side is
                     //  executed and which side is reduced.
-                    // TODO correct????
-                    if (bid_it->leaves_quantity() > ask_it->leaves_quantity()) {
+                    if (bid_it->leaves_quantity() < ask_it->leaves_quantity()) {
                         match_orders<OrderSide::BUY, OrderSide::SELL>(orderbook, bid_it, orderbook.bids().begin(), ask_it, orderbook.asks().begin());
                     } else {
                         match_orders<OrderSide::SELL, OrderSide::BUY>(orderbook, ask_it, orderbook.asks().begin(), bid_it, orderbook.bids().begin());
