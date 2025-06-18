@@ -20,7 +20,7 @@ enum class LevelsType {
 
 template <OrderType type>
 constexpr LevelsType order_type_to_levels_type() noexcept {
-    if constexpr (type == OrderType::LIMIT) return LevelsType::PRICE;
+    if constexpr (is_limit(type)) return LevelsType::PRICE;
     else if constexpr (is_trailing(type)) return LevelsType::TRAILING_STOP;
     return LevelsType::STOP;
 }
