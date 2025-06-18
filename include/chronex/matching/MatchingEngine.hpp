@@ -817,44 +817,12 @@ private:
     }
 
     // TODO reorder the price and volume params so that they're consistent
-    template <OrderSide side>
-    constexpr void execute_matching_chain(OrderBook& orderbook, Price price, Quantity volume) noexcept {
-        auto& levels = get_side<side>(orderbook);
-
-        // TODO Should we say while (!levels.is_empty())?
-        // auto level_it = levels.begin();
-        // while (int(level_it != levels.end()) & int(volume > Quantity { 0 })) {
-        //     auto& [level_price, level] = *level_it;
-        //     auto order_it = level.begin();
-        //
-        //     while (order_it != level.end()) {
-        //
-        //         auto quantity = calculate_matching_chain_quantity(*order_it, order_it->leaves_quantity(), volume);
-        //
-        //         event_handler().template on_execute_order<side>(orderbook, *order_it, quantity, price);
-        //
-        //         // TODO remove this and include it in the reduce order
-        //         orderbook.template update_matching_price<side>(price);
-        //
-        //         orderbook.template execute_quantity<OrderType::LIMIT, side>(order_it, quantity, price);
-        //
-        //         volume -= quantity;
-        //
-        //         order_it = level.next(order_it);
-        //     }
-        //
-        //     ++level_it;
-        // }
-
+    template <OrderSide side, typename T>
+    constexpr auto execute_matching_chain(OrderBook& orderbook, OrderIterator order_it, T level_it, Price price, Quantity volume) noexcept {
         // The matching chain is already calculated.
         // We don't need to keep checking for boundaries
-
-        auto level_it = levels.begin();
-        auto order_it = level_it->second.begin();
         while (volume > Quantity { 0 }) {
             auto quantity = calculate_matching_chain_quantity(*order_it, volume);
-
-            event_handler().template on_execute_order<side>(orderbook, *order_it, quantity, price);
 
             // execute_quantity is likely to delete the order and possibly the level
             std::tie(order_it, level_it) = orderbook.template execute_quantity<OrderType::LIMIT, side>(order_it, level_it, quantity, price);
@@ -862,6 +830,17 @@ private:
 
             volume -= quantity;
         }
+
+        return std::make_pair(order_it, level_it);
+    }
+
+    template <OrderSide side>
+    constexpr auto execute_matching_chain(OrderBook& orderbook, Price price, Quantity volume) noexcept {
+        auto& levels = get_side<side>(orderbook);
+        auto level_it = levels.begin();
+        auto order_it = level_it->second.begin();
+
+        return execute_matching_chain<side>(orderbook, order_it, level_it, price, volume);
     }
 
     template <OrderSide side>
