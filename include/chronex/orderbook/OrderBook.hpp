@@ -129,30 +129,25 @@ public:
         return remove_order_internal<type, side, true>(order_it, level_it);
     }
 
-        auto& levels = this->template levels<type, side>();
-        assert(level_it != levels.end());
+    template <OrderType type, OrderSide side, typename T>
+    constexpr auto link_order(OrderIterator order_it, T level_it) noexcept {
+        // TODO do we want to just link, or do we need to match after linking?
+        //  Some times we don't? Make separate method for matching after linking?
+        //  Add the ability to add an iterator in addition to orders?
+        levels<type, side>().link_order_back(order_it, level_it);
+        return level_it;
+    }
 
-        if constexpr (should_report()) {
-            event_handler().template on_remove_order<type, side>(*this, *order_it);
-
-            if (level_it->second.is_empty()) {
-                event_handler().template on_remove_level<type, side>(*this, level_it->first);
-            }
-        }
-
-        levels.remove_order(order_it, level_it);
-
-        if (level_it->second.is_empty()) {
-            event_handler().template on_remove_level<type, side>(*this, level_it->first);
-            // Is removing levels with total_quantity == 0 an optimization or pessimization?
-            // If you're not going to remove it, remember to consider levels with size == 0
-            //  non-present, and not count a Levels struct with multiple 0-size levels not empty
-            levels.remove_level(level_it);
-        }
+    template <OrderType type, OrderSide side>
+    constexpr auto unlink_order(OrderIterator order_it) noexcept {
         auto level = levels<type, side>().find(order_it->template key_price<type>());
+        return unlink_order<type, side>(order_it, level);
+    }
 
-        remove_order_from_map(id);
+    template <OrderType type, OrderSide side>
+    constexpr auto link_order(OrderIterator order_it) noexcept {
         auto level = get_or_add_level<type, side>(order_it->template key_price<type>());
+        return link_order<type, side>(order_it, level);
     }
 
     template <OrderType type, OrderSide side, typename T>
@@ -281,28 +276,6 @@ public:
     constexpr void reset_matching_prices() noexcept {
         _matching_bid_price = Price::min();
         _matching_ask_price = Price::max();
-    }
-
-    template <OrderType type, OrderSide side, typename T>
-    constexpr void unlink_order(OrderIterator order_it, T level_it) noexcept {
-        levels<type, side>().unlink_order(order_it, level_it);
-    }
-
-    template <OrderType type, OrderSide side, typename T>
-    constexpr void link_order(OrderIterator order_it, T level_it) noexcept {
-        levels<type, side>().link_order_back(order_it, level_it);
-    }
-
-    template <OrderType type, OrderSide side>
-    constexpr void unlink_order(OrderIterator order_it) noexcept {
-        auto level = levels<type, side>().find(order_it->price());
-        return unlink_order<type, side>(order_it, level);
-    }
-
-    template <OrderType type, OrderSide side>
-    constexpr void link_order(OrderIterator order_it) noexcept {
-        auto level = get_or_add_level<type, side>(order_it->price());
-        return link_order<type, side>(order_it, level);
     }
 
     template <OrderType type, OrderSide side>
