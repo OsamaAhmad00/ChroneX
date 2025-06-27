@@ -134,59 +134,59 @@ TEST_F(MatchingEngineTest, AutomaticMatchingMarketOrder) {
 }
 
 // Test case: Automatic matching - limit order
-// TEST_F(MatchingEngineTest, AutomaticMatchingLimitOrder) {
-//     // Add buy limit orders
-//     matching_engine.add_order(Order::buy_limit(1, 0, 10, 10));
-//     matching_engine.add_order(Order::buy_limit(2, 0, 10, 20));
-//     matching_engine.add_order(Order::buy_limit(3, 0, 10, 30));
-//     matching_engine.add_order(Order::buy_limit(4, 0, 20, 10));
-//     matching_engine.add_order(Order::buy_limit(5, 0, 20, 20));
-//     matching_engine.add_order(Order::buy_limit(6, 0, 20, 30));
-//     matching_engine.add_order(Order::buy_limit(7, 0, 30, 10));
-//     matching_engine.add_order(Order::buy_limit(8, 0, 30, 20));
-//     matching_engine.add_order(Order::buy_limit(9, 0, 30, 30));
-//     EXPECT_EQ(BookOrders(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(9, 0));
-//     EXPECT_EQ(BookVolume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(180, 0));
-//
-//     // Add sell limit orders
-//     matching_engine.add_order(Order::sell_limit(10, 0, 40, 30));
-//     matching_engine.add_order(Order::sell_limit(11, 0, 40, 20));
-//     matching_engine.add_order(Order::sell_limit(12, 0, 40, 10));
-//     matching_engine.add_order(Order::sell_limit(13, 0, 50, 30));
-//     matching_engine.add_order(Order::sell_limit(14, 0, 50, 20));
-//     matching_engine.add_order(Order::sell_limit(15, 0, 50, 10));
-//     matching_engine.add_order(Order::sell_limit(16, 0, 60, 30));
-//     matching_engine.add_order(Order::sell_limit(17, 0, 60, 20));
-//     matching_engine.add_order(Order::sell_limit(18, 0, 60, 10));
-//     EXPECT_EQ(BookOrders(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(9, 9));
-//     EXPECT_EQ(BookVolume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(180, 180));
-//
-//     // Automatic matching on add limit orders
-//     matching_engine.add_order(Order::sell_limit(19, 0, 30, 5));
-//     matching_engine.add_order(Order::sell_limit(20, 0, 30, 25));
-//     matching_engine.add_order(Order::sell_limit(21, 0, 30, 15));
-//     matching_engine.add_order(Order::sell_limit(22, 0, 30, 20));
-//     EXPECT_EQ(BookOrders(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(6, 10));
-//     EXPECT_EQ(BookVolume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(120, 185));
-//
-//     // Automatic matching on several levels
-//     matching_engine.add_order(Order::buy_limit(23, 0, 60, 105));
-//     EXPECT_EQ(BookOrders(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(6, 5));
-//     EXPECT_EQ(BookVolume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(120, 80));
-//
-//     // Automatic matching on modify order
-//     matching_engine.modify_order(OrderId{ 15 }, 20, 20);
-//     EXPECT_EQ(BookOrders(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(5, 4));
-//     EXPECT_EQ(BookVolume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(100, 70));
-//
-//     // Automatic matching on replace order
-//     matching_engine.replace_order(OrderId{ 2 }, 24, 70, 100);
-//     EXPECT_EQ(BookOrders(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(5, 0));
-//     EXPECT_EQ(BookVolume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(110, 0));
-//     matching_engine.replace_order(1, Order::sell_limit(25, 0, 0, 100));
-//     EXPECT_EQ(BookOrders(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
-//     EXPECT_EQ(BookVolume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
-// }
+TEST_F(MatchingEngineTest, AutomaticMatchingLimitOrder) {
+    // Add buy limit orders
+    matching_engine.add_order(Order::buy_limit(1, 0, 10, 10));
+    matching_engine.add_order(Order::buy_limit(2, 0, 10, 20));
+    matching_engine.add_order(Order::buy_limit(3, 0, 10, 30));
+    matching_engine.add_order(Order::buy_limit(4, 0, 20, 10));
+    matching_engine.add_order(Order::buy_limit(5, 0, 20, 20));
+    matching_engine.add_order(Order::buy_limit(6, 0, 20, 30));
+    matching_engine.add_order(Order::buy_limit(7, 0, 30, 10));
+    matching_engine.add_order(Order::buy_limit(8, 0, 30, 20));
+    matching_engine.add_order(Order::buy_limit(9, 0, 30, 30));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(9, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(180, 0));
+
+    // Add sell limit orders
+    matching_engine.add_order(Order::sell_limit(10, 0, 40, 30));
+    matching_engine.add_order(Order::sell_limit(11, 0, 40, 20));
+    matching_engine.add_order(Order::sell_limit(12, 0, 40, 10));
+    matching_engine.add_order(Order::sell_limit(13, 0, 50, 30));
+    matching_engine.add_order(Order::sell_limit(14, 0, 50, 20));
+    matching_engine.add_order(Order::sell_limit(15, 0, 50, 10));
+    matching_engine.add_order(Order::sell_limit(16, 0, 60, 30));
+    matching_engine.add_order(Order::sell_limit(17, 0, 60, 20));
+    matching_engine.add_order(Order::sell_limit(18, 0, 60, 10));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(9, 9));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(180, 180));
+
+    // Automatic matching on add limit orders
+    matching_engine.add_order(Order::sell_limit(19, 0, 30, 5));
+    matching_engine.add_order(Order::sell_limit(20, 0, 30, 25));
+    matching_engine.add_order(Order::sell_limit(21, 0, 30, 15));
+    matching_engine.add_order(Order::sell_limit(22, 0, 30, 20));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(6, 10));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(120, 185));
+
+    // Automatic matching on several levels
+    matching_engine.add_order(Order::buy_limit(23, 0, 60, 105));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(6, 5));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(120, 80));
+
+    // Automatic matching on modify order
+    matching_engine.modify_order(OrderId{ 15 }, Price{ 20 }, Quantity{ 20 });
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(5, 4));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(100, 70));
+
+    // Automatic matching on replace order
+    matching_engine.replace_order(OrderId{ 2 }, OrderId{ 24 }, Price{ 70 }, Quantity{ 100 });
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(5, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(110, 0));
+    matching_engine.replace_order(OrderId{ 1 }, Order::sell_limit(25, 0, 0, 100));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
+}
 
 // Test case: Automatic matching - Immediate-Or-Cancel limit order
 TEST_F(MatchingEngineTest, AutomaticMatchingIOCLimitOrder) {
@@ -412,82 +412,82 @@ TEST_F(MatchingEngineTest, AutomaticMatchingStopLimitOrderEmptyMarket) {
 }
 
 // Test case: Automatic matching - trailing stop order
-// TEST_F(MatchingEngineTest, AutomaticMatchingTrailingStopOrder) {
-//     // Create the market with last prices
-//     matching_engine.add_order(Order::buy_limit(1, 0, 100, 20));
-//     matching_engine.add_order(Order::sell_limit(2, 0, 200, 20));
-//     matching_engine.add_order(Order::sell_market(3, 0, 10));
-//     matching_engine.add_order(Order::buy_market(4, 0, 10));
-//     EXPECT_EQ(BookOrders(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(1, 1));
-//     EXPECT_EQ(BookVolume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(10, 10));
-//     EXPECT_EQ(BookStopOrders(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
-//     EXPECT_EQ(BookStopVolume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
-//
-//     // Add some trailing stop orders
-//     matching_engine.add_order(Order::trailing_buy_stop(5, 0, 1000, 10, 10, 5));
-//     matching_engine.add_order(Order::trailing_sell_stop_limit(6, 0, 0, 10, 10, -1000, -500));
-//     EXPECT_EQ(matching_engine.order_at(OrderId{ 5 })->StopPrice, 210);
-//     EXPECT_EQ(matching_engine.order_at(OrderId{ 6 })->StopPrice, 90);
-//     EXPECT_EQ(matching_engine.order_at(OrderId{ 6 })->Price, 100);
-//     EXPECT_EQ(BookOrders(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(1, 1));
-//     EXPECT_EQ(BookVolume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(10, 10));
-//     EXPECT_EQ(BookStopOrders(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(1, 1));
-//     EXPECT_EQ(BookStopVolume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(10, 10));
-//
-//     // Move the market best bid price level
-//     matching_engine.modify_order(1, 103, 20);
-//     EXPECT_EQ(matching_engine.order_at(OrderId{ 6 })->StopPrice, 90);
-//     EXPECT_EQ(matching_engine.order_at(OrderId{ 6 })->Price, 100);
-//     matching_engine.modify_order(1, 120, 20);
-//     EXPECT_EQ(matching_engine.order_at(OrderId{ 6 })->StopPrice, 108);
-//     EXPECT_EQ(matching_engine.order_at(OrderId{ 6 })->Price, 118);
-//
-//     // Move the market best ask price level. Trailing stop price will not move
-//     // because the last bid price = 200
-//     matching_engine.modify_order(2, 197, 20);
-//     EXPECT_EQ(matching_engine.order_at(OrderId{ 5 })->StopPrice, 210);
-//     matching_engine.modify_order(2, 180, 20);
-//     EXPECT_EQ(matching_engine.order_at(OrderId{ 5 })->StopPrice, 210);
-//
-//     // Move the market best ask price level
-//     matching_engine.modify_order(2, 197, 20);
-//     matching_engine.add_order(Order::buy_market(7, 0, 10));
-//     EXPECT_EQ(matching_engine.order_at(OrderId{ 5 })->StopPrice, 210);
-//     matching_engine.modify_order(2, 180, 20);
-//     matching_engine.add_order(Order::buy_market(7, 0, 10));
-//     EXPECT_EQ(matching_engine.order_at(OrderId{ 5 })->StopPrice, 190);
-// }
+TEST_F(MatchingEngineTest, AutomaticMatchingTrailingStopOrder) {
+    // Create the market with last prices
+    matching_engine.add_order(Order::buy_limit(1, 0, 100, 20));
+    matching_engine.add_order(Order::sell_limit(2, 0, 200, 20));
+    matching_engine.add_order(Order::sell_market(3, 0, 10));
+    matching_engine.add_order(Order::buy_market(4, 0, 10));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(1, 1));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(10, 10));
+    EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
+    EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
 
-// // Test case: In-Flight Mitigation
-// TEST_F(MatchingEngineTest, InFlightMitigation) {
-//     // Add buy limit order
-//     matching_engine.add_order(Order::buy_limit(1, 0, 10, 100));
-//     EXPECT_EQ(BookOrders(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(1, 0));
-//     EXPECT_EQ(BookVolume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(100, 0));
-//
-//     // Add sell limit order
-//     matching_engine.add_order(Order::sell_limit(2, 0, 20, 100));
-//     EXPECT_EQ(BookOrders(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(1, 1));
-//     EXPECT_EQ(BookVolume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(100, 100));
-//
-//     // Automatic matching on add limit orders
-//     matching_engine.add_order(Order::sell_limit(3, 0, 10, 20));
-//     matching_engine.add_order(Order::buy_limit(4, 0, 20, 20));
-//     EXPECT_EQ(BookOrders(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(1, 1));
-//     EXPECT_EQ(BookVolume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(80, 80));
-//
-//     // Mitigate orders
-//     matching_engine.MitigateOrder(1, 10, 150);
-//     matching_engine.MitigateOrder(2, 20, 50);
-//     EXPECT_EQ(BookOrders(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(1, 1));
-//     EXPECT_EQ(BookVolume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(130, 30));
-//
-//     // Mitigate orders
-//     matching_engine.MitigateOrder(1, 10, 20);
-//     matching_engine.MitigateOrder(2, 20, 10);
-//     EXPECT_EQ(BookOrders(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
-//     EXPECT_EQ(BookVolume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
-// }
+    // Add some trailing stop orders
+    matching_engine.add_order(Order::trailing_buy_stop(5, 0, 1000, 10, TrailingDistance::from_percentage_units(10, 5)));
+    matching_engine.add_order(Order::trailing_sell_stop_limit(6, 0, 0, 10, 10, TrailingDistance::from_percentage_units(-1000, -500)));
+    EXPECT_EQ(matching_engine.order_at(OrderId{ 5 })->stop_price().value, 210);
+    EXPECT_EQ(matching_engine.order_at(OrderId{ 6 })->stop_price().value, 90);
+    EXPECT_EQ(matching_engine.order_at(OrderId{ 6 })->price().value, 100);
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(1, 1));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(10, 10));
+    EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(1, 1));
+    EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(10, 10));
+
+    // Move the market best bid price level
+    matching_engine.modify_order(OrderId{ 1 }, Price{ 103 }, Quantity{ 20 });
+    EXPECT_EQ(matching_engine.order_at(OrderId{ 6 })->stop_price().value, 90);
+    EXPECT_EQ(matching_engine.order_at(OrderId{ 6 })->price().value, 100);
+    matching_engine.modify_order(OrderId{ 1 }, Price{ 120 }, Quantity{ 20 });
+    EXPECT_EQ(matching_engine.order_at(OrderId{ 6 })->stop_price().value, 108);
+    EXPECT_EQ(matching_engine.order_at(OrderId{ 6 })->price().value, 118);
+
+    // Move the market best ask price level. Trailing stop price will not move
+    // because the last bid price = 200
+    matching_engine.modify_order(OrderId{ 2 }, Price{ 197 }, Quantity{ 20 });
+    EXPECT_EQ(matching_engine.order_at(OrderId{ 5 })->stop_price().value, 210);
+    matching_engine.modify_order(OrderId{ 2 }, Price{ 180 }, Quantity{ 20 });
+    EXPECT_EQ(matching_engine.order_at(OrderId{ 5 })->stop_price().value, 210);
+
+    // Move the market best ask price level
+    matching_engine.modify_order(OrderId{ 2 }, Price{ 197 }, Quantity{ 20 });
+    matching_engine.add_order(Order::buy_market(7, 0, 10));
+    EXPECT_EQ(matching_engine.order_at(OrderId{ 5 })->stop_price().value, 210);
+    matching_engine.modify_order(OrderId{ 2 }, Price{ 180 }, Quantity{ 20 });
+    matching_engine.add_order(Order::buy_market(7, 0, 10));
+    EXPECT_EQ(matching_engine.order_at(OrderId{ 5 })->stop_price().value, 190);
+}
+
+// Test case: In-Flight Mitigation
+TEST_F(MatchingEngineTest, InFlightMitigation) {
+    // Add buy limit order
+    matching_engine.add_order(Order::buy_limit(1, 0, 10, 100));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(1, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(100, 0));
+
+    // Add sell limit order
+    matching_engine.add_order(Order::sell_limit(2, 0, 20, 100));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(1, 1));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(100, 100));
+
+    // Automatic matching on add limit orders
+    matching_engine.add_order(Order::sell_limit(3, 0, 10, 20));
+    matching_engine.add_order(Order::buy_limit(4, 0, 20, 20));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(1, 1));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(80, 80));
+
+    // Mitigate orders
+    matching_engine.mitigate_order(OrderId{ 1 }, Price{ 10 }, Quantity{ 150 });
+    matching_engine.mitigate_order(OrderId{ 2 }, Price{ 20 }, Quantity{ 50 });
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(1, 1));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(130, 30));
+
+    // Mitigate orders
+    matching_engine.mitigate_order(OrderId{ 1 }, Price{ 10 }, Quantity{ 20 });
+    matching_engine.mitigate_order(OrderId{ 2 }, Price{ 20 }, Quantity{ 10 });
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(0, 0));
+}
 
 // Test case: Manual matching
 TEST_F(MatchingEngineTest, ManualMatching) {
