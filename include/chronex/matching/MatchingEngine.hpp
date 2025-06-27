@@ -618,10 +618,11 @@ private:
         auto result = StopOrdersAction::NOT_TRIGGERED;
 
         while (true) {
-            auto bid_price = orderbook.template get_market_price<OrderSide::BUY>();
-            auto [a, b] = try_trigger_stop_orders_side<OrderSide::SELL>(orderbook, bid_price);
+            // TODO why switching order of a b and c d changes behavior?
             auto ask_price = orderbook.template get_market_price<OrderSide::SELL>();
-            auto [c, d] = try_trigger_stop_orders_side<OrderSide::BUY>(orderbook, ask_price);
+            auto [a, b] = try_trigger_stop_orders_side<OrderSide::BUY>(orderbook, ask_price);
+            auto bid_price = orderbook.template get_market_price<OrderSide::BUY>();
+            auto [c, d] = try_trigger_stop_orders_side<OrderSide::SELL>(orderbook, bid_price);
 
             if (is_any_triggered(a, b, c, d)) {
                 result = StopOrdersAction::TRIGGERED;
