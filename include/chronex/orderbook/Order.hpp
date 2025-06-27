@@ -48,6 +48,16 @@ struct Order {
     [[nodiscard]] constexpr Price stop_price() const noexcept { return _stop_price; }
     [[nodiscard]] constexpr Price initial_stop_price() const noexcept { return _initial_stop_price; }
 
+    // TODO replace all searching by price() to this
+    template <OrderType type>
+    [[nodiscard]] constexpr Price key_price() const noexcept {
+        if constexpr (is_stop(type)) {
+            return stop_price();
+        } else {
+            return price();
+        }
+    }
+
     [[nodiscard]] constexpr Price slippage() const noexcept { return _slippage; }
     [[nodiscard]] constexpr bool has_slippage() const noexcept { return slippage() != Price::invalid(); }
 

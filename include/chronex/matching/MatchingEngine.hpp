@@ -284,7 +284,9 @@ public:
         auto [order_it, orderbook] = get_order_and_orderbook(id);                                               \
                                                                                                                 \
         auto func = [&] <OrderType type, OrderSide side, typename... Args2> (Args2&&... args2) {                \
-        auto level_it = orderbook.get().template get_or_add_level<type, side>(order_it->price());               \
+            auto level_it = orderbook.get().template get_or_add_level<type, side>(                              \
+                order_it->template key_price<type>()                                                            \
+            );                                                                                                  \
             OP_NAME<type, side>(orderbook.get(), order_it, level_it, std::forward<Args2>(args2)...);            \
         };                                                                                                      \
                                                                                                                 \
@@ -332,7 +334,7 @@ private:
 
         auto func = [&] <OrderType type, OrderSide side> {
             quantity = std::min(quantity, order_it->leaves_quantity());
-            auto level_it = orderbook.template levels<type, side>().find(order_it->price());
+            auto level_it = orderbook.template levels<type, side>().find(order_it->template key_price<type>());
             (void)orderbook.template execute_quantity<type, side>(order_it, level_it, quantity, price);
             orderbook.reset_matching_prices();
         };
@@ -558,7 +560,7 @@ private:
         //  it harder for the branch predictor to do its job
         auto& order = *order_it;
         if (int(!order.is_fully_filled()) & int(!order.is_ioc()) & int(!order.is_fok())) {
-            auto level_it = orderbook.template get_or_add_level<OrderType::LIMIT, side>(order_it->price());
+            auto level_it = orderbook.template get_or_add_level<OrderType::LIMIT, side>(order_it->template key_price<OrderType::LIMIT>());
             orderbook.template link_order<OrderType::LIMIT, side>(order_it, level_it);
             return true;
         } else {

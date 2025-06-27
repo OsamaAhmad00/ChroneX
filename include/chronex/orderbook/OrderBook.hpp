@@ -103,13 +103,7 @@ public:
 
         assert(!orders().contains(id) && "Order with the same ID already exists in the order book");
 
-        auto level_it = [&] {
-            if constexpr (is_stop(type)) {
-                return get_or_add_level<type, side>(order.stop_price());
-            } else {
-                return get_or_add_level<type, side>(order.price());
-            }
-        }();
+        auto level_it = get_or_add_level<type, side>(order.template key_price<type>());
 
         if constexpr (should_report()) {
             event_handler().template on_add_order<type, side>(*this, order);
@@ -151,8 +145,10 @@ public:
             //  non-present, and not count a Levels struct with multiple 0-size levels not empty
             levels.remove_level(level_it);
         }
+        auto level = levels<type, side>().find(order_it->template key_price<type>());
 
         remove_order_from_map(id);
+        auto level = get_or_add_level<type, side>(order_it->template key_price<type>());
     }
 
     template <OrderType type, OrderSide side, typename T>

@@ -63,7 +63,7 @@ public:
 
     template <OrderType type, OrderSide side, typename T>
     constexpr auto add_order(T&& order) noexcept {
-        return add_order<type, side>(std::forward<T>(order), this->find(order.price()));
+        return add_order<type, side>(std::forward<T>(order), this->find(order.template key_price<type>()));
     }
 
     template <typename T>
@@ -101,7 +101,7 @@ public:
 
     template <OrderType type, OrderSide side>
     constexpr auto remove_order(OrderIterator order_it) noexcept {
-        return remove_order<type, side>(order_it, this->find(order_it->price()));
+        return remove_order<type, side>(order_it, this->find(order_it->template key_price<type>()));
     }
 
     constexpr auto link_order_back(OrderIterator order_it, iterator level_it) noexcept {
