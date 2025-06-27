@@ -114,6 +114,22 @@ struct Order {
 
     ~Order() noexcept = default;
 
+    constexpr Order clone(uint64_t new_id, uint64_t new_price, uint64_t new_quantity) {
+        return Order(
+            new_id,
+            symbol_id().value,
+            type(),
+            side(),
+            time_in_force(),
+            new_quantity,
+            max_visible_quantity().value,
+            new_price,
+            stop_price().value,
+            slippage().value,
+            trailing_distance()
+        );
+    }
+
     // TODO extract common parts, and arrange the parameters and args in a nice way
     constexpr static Order market(uint64_t id, uint32_t symbol_id, OrderSide side, uint64_t quantity, uint64_t slippage = Price::invalid().value) noexcept {
         // TODO are the values with invalid correct?
