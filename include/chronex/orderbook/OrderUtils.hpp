@@ -155,11 +155,11 @@ struct TrailingDistance {
 
         // TODO can signs or casts here cause any problem?
         if constexpr (side == OrderSide::BUY) {
-            auto new_price = safe_add(market_price.value, static_cast<uint64_t>(diff));
-            return (cast(old_price.value) - cast(new_price) >= trailing_step) ? Price{ new_price } : old_price;
+            auto new_price = clipping_add(market_price.value, static_cast<uint64_t>(diff));
+            return (old_price.value > new_price && old_price.value - new_price >= trailing_step) ? Price{ new_price } : old_price;
         } else {
-            auto new_price = safe_sub(market_price.value, static_cast<uint64_t>(diff));
-            return (cast(new_price) - cast(old_price.value) >= trailing_step) ? Price{ new_price } : old_price;
+            auto new_price = clipping_sub(market_price.value, static_cast<uint64_t>(diff));
+            return (new_price > old_price.value && new_price - old_price.value >= trailing_step) ? Price{ new_price } : old_price;
         }
     }
 
