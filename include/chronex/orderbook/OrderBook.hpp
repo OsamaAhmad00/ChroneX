@@ -121,9 +121,13 @@ public:
 
     template <OrderType type, OrderSide side, typename T>
     constexpr auto remove_order(OrderIterator order_it, T level_it) noexcept {
-        auto id = order_it->id();
+        return remove_order_internal<type, side, false>(order_it, level_it);
+    }
 
-        assert(orders().contains(id) && "Order with the same ID doesn't exists in the order book");
+    template <OrderType type, OrderSide side, typename T>
+    constexpr auto unlink_order(OrderIterator order_it, T level_it) noexcept {
+        return remove_order_internal<type, side, true>(order_it, level_it);
+    }
 
         auto& levels = this->template levels<type, side>();
         assert(level_it != levels.end());
@@ -337,6 +341,44 @@ public:
     ~OrderBook() { clear(); }
 
 private:
+
+    template <OrderType type, OrderSide side, bool unlink_only, typename T>
+    constexpr auto remove_order_internal(OrderIterator order_it, T level_it) noexcept {
+        auto id = order_it->id();
+
+        assert(orders().contains(id) && "Order with the same ID doesn't exists in the order book");
+
+        auto& levels = this->template levels<type, side>();
+        assert(level_it != levels.end());
+
+        if constexpr (should_report()) {
+            // TODO if unlinking then adding to the same level, no need to remove it then add it again.
+            //  Both for speed and for causing less events
+            event_handler().template on_remove_order<type, side>(*this, *order_it);
+
+            if (level_it->second.is_empty()) {
+                event_handler().template on_remove_level<type, side>(*this, level_it->first);
+            }
+        }
+
+        if constexpr (unlink_only) {
+            levels.unlink_order(order_it, level_it);
+        } else {
+            levels.remove_order(order_it, level_it);
+        }
+
+        if (level_it->second.is_empty()) {
+            event_handler().template on_remove_level<type, side>(*this, level_it->first);
+            // Is removing levels with total_quantity == 0 an optimization or pessimization?
+            // If you're not going to remove it, remember to consider levels with size == 0
+            //  non-present, and not count a Levels struct with multiple 0-size levels not empty
+            levels.remove_level(level_it);
+        }
+
+        if constexpr (!unlink_only) {
+            remove_order_from_map(id);
+        }
+    }
 
     constexpr void add_order_to_map(OrderId id, OrderIterator order_it) noexcept {
         assert(!orders().contains(id) && "Order with the same ID already exists in the order book");
