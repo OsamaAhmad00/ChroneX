@@ -23,12 +23,14 @@ class Levels {
     using LevelType = Level<Order>;
     using ContainerType = std::map<Price, LevelType, Comp>;
 
+    // TODO make everything private so that the levels are not manipulated directly from the matching engine
 public:
 
     // TODO remove this
     using LevelQueueDataType = typename LevelType::LevelQueueDataType;
 
     using OrderIterator = typename LevelType::iterator;
+    using ConstOrderIterator = typename LevelType::const_iterator;
 
     using iterator = typename ContainerType::iterator;
     using const_iterator = typename ContainerType::const_iterator;

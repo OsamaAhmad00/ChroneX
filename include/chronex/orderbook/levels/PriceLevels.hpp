@@ -17,6 +17,7 @@ public:
 
     // Or DescendingLevels. It doesn't matter.
     using OrderIterator = typename AscendingLevels<OrderType>::OrderIterator;
+    using ConstOrderIterator = typename AscendingLevels<OrderType>::ConstOrderIterator;
 
     template <typename Self>
     constexpr auto& bids(this Self&& self) noexcept { return self._bids; }

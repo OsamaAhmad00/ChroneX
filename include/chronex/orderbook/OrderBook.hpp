@@ -36,9 +36,13 @@ template <
 class OrderBook {
 public:
 
+    // TODO handle event handler reporting correctly. Also, possible make
+    //  the orderbook inherit from it, utilizing the empty base optimization.
+
     // We can use StopLevels or TrailingStopLevels as
     //  well, all have the same OrderIterator type
     using OrderIterator = typename PriceLevels<Order>::OrderIterator;
+    using ConstOrderIterator = typename PriceLevels<Order>::ConstOrderIterator;
 
     // TODO remove this
     using LevelQueueDataType = typename PriceLevels<Order>::LevelQueueDataType;

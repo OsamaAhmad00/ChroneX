@@ -27,6 +27,7 @@ template <
 class MatchingEngine {
 
     using OrderIterator = typename OrderBook::OrderIterator;
+    using ConstOrderIterator = typename OrderBook::ConstOrderIterator;
 
     // TODO mark methods that allocate noexcept conditionally, conditioned that the allocation does throw or not
 
@@ -51,8 +52,9 @@ public:
         return orderbooks()[id.value];
     }
 
-    [[nodiscard]] constexpr auto& order_at(OrderId id) const noexcept {
-        return orders()[id];
+    [[nodiscard]] constexpr ConstOrderIterator order_at(OrderId id) const noexcept {
+        assert(orders().contains(id) && "Order with the given ID doesn't exists in the matching engine");
+        return orders().find(id)->second;
     }
 
     constexpr void add_new_orderbook(Symbol symbol) {
