@@ -68,20 +68,25 @@ public:
 
     template <typename T>
     constexpr auto execute_quantity(OrderIterator order_it, T level_it, Quantity quantity) noexcept {
-        // TODO remove duplication
-        assert(level_it != this->end() && "Trying to execute an order from a non-existing level");
-        auto valid_order_it = level_it->second.execute_quantity(order_it, quantity);
-        bool removed = valid_order_it != order_it;
-        _orders_count -= removed;
-        return valid_order_it;
+        assert(order_it->leaves_quantity() >= quantity && "Trying to execute more quantity than the order leaves");
+        order_it->increase_filled_quantity(quantity);
+        return modify_order(order_it, level_it, order_it->leaves_quantity() - quantity);
     }
 
     template <typename Iter>
     constexpr auto reduce_order(OrderIterator order_it, Iter level_it, Quantity quantity) noexcept {
-        assert(level_it != this->end() && "Trying to reduce an order from a non-existing level");
-        auto valid_order_it = level_it->second.reduce_order(order_it, quantity);
+        return modify_order(order_it, level_it, order_it->price(), quantity);
+    }
+
+    template <typename Iter>
+    constexpr auto modify_order(OrderIterator order_it, Iter level_it, Quantity quantity) noexcept {
+        assert(level_it != this->end() && "Trying to modify an order from a non-existing level");
+
+        auto valid_order_it = level_it->second.modify_order(order_it, quantity);
         bool removed = valid_order_it != order_it;
         _orders_count -= removed;
+
+        return valid_order_it;
     }
 
     template <typename Iter>
