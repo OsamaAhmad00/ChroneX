@@ -43,7 +43,7 @@ public:
     // This shouldn't affect performance since it's very predictable because
     //  the matching is typically enabled or disabled for the entire session
     constexpr bool is_matching_enabled() const noexcept { return _is_matching_enabled; }
-    constexpr void enable_matching() noexcept { _is_matching_enabled = true; }
+    constexpr void enable_matching() noexcept { _is_matching_enabled = true; match(); }
     constexpr void disable_matching() noexcept { _is_matching_enabled = false; }
 
     // TODO should these two methods be public? They're used in testing, but should they be exposed to users?
