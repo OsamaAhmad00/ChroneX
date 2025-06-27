@@ -252,13 +252,16 @@ public:
             }
         }
 
-        if (order_it->is_fully_filled()) {
-            // Remove
-            // TODO Is that all we need?
-            level_it->free(order_it);
-        } else {
+        if (!order_it->is_fully_filled()) {
+            // TODO don't remove it then add it again!
+            orders().erase(order_it->id());
             add_order<type, side>(std::move(*order_it));
         }
+
+        // TODO Reuse the node
+        // TODO don't expose memory management here
+        // Free the node
+        level_it->second.free(order_it);
 
         // TODO do we need this here or can we perform it only if the order is not removed?
         perform_post_order_processing(orderbook);

@@ -48,6 +48,10 @@ public:
     [[nodiscard]] constexpr const_reverse_iterator rbegin() const noexcept { return orders.rbegin(); }
     [[nodiscard]] constexpr const_reverse_iterator rend() const noexcept { return orders.rend(); }
 
+    constexpr auto free(iterator it) noexcept {
+        orders.free(it);
+    }
+
     Level() = default;
 
     Level(const Level&) = delete;
