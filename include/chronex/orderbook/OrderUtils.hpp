@@ -16,7 +16,6 @@ struct OrderTypeBits {
     constexpr static uint8_t Stop      = 0b00000100;
     constexpr static uint8_t StopLimit = 0b00001000;
     constexpr static uint8_t Trailing  = 0b00010000;
-    constexpr static uint8_t Triggered = 0b00100000;
 };
 
 enum class OrderType : uint8_t
@@ -28,11 +27,6 @@ enum class OrderType : uint8_t
     STOP_LIMIT = OrderTypeBits::StopLimit,
     TRAILING_STOP = OrderTypeBits::Trailing | OrderTypeBits::Stop,
     TRAILING_STOP_LIMIT = OrderTypeBits::Trailing | OrderTypeBits::StopLimit,
-
-    TRIGGERED_STOP = MARKET | STOP | OrderTypeBits::Triggered,
-    TRIGGERED_STOP_LIMIT = LIMIT | STOP_LIMIT | OrderTypeBits::Triggered,
-    TRIGGERED_TRAILING_STOP = MARKET | TRAILING_STOP | OrderTypeBits::Triggered,
-    TRIGGERED_TRAILING_STOP_LIMIT = LIMIT | TRAILING_STOP_LIMIT | OrderTypeBits::Triggered,
 };
 
 enum class OrderSide : uint8_t {
@@ -204,29 +198,22 @@ constexpr bool is_limit(const OrderType type) noexcept {
     return static_cast<uint8_t>(type) & OrderTypeBits::Limit;
 }
 
-constexpr bool is_triggered(const OrderType type) noexcept {
-    return static_cast<uint8_t>(type) & OrderTypeBits::Triggered;
-}
-
 constexpr bool is_trailing(const OrderType type) noexcept {
-    return static_cast<uint8_t>(type) & OrderTypeBits::Trailing && !is_triggered(type);
+    return static_cast<uint8_t>(type) & OrderTypeBits::Trailing; // && !is_triggered(type);
 }
 
 constexpr bool is_stop(const OrderType type) noexcept {
-    return ((static_cast<uint8_t>(type) & OrderTypeBits::Stop) ||
-            (static_cast<uint8_t>(type) & OrderTypeBits::StopLimit)) &&
-            !is_triggered(type);
+    return (static_cast<uint8_t>(type) & OrderTypeBits::Stop) ||
+           (static_cast<uint8_t>(type) & OrderTypeBits::StopLimit);
 }
 
 template <OrderType type>
 [[nodiscard]] constexpr OrderType get_triggered() noexcept {
-    OrderType result = type;
     if constexpr (type == OrderType::STOP || type == OrderType::TRAILING_STOP) {
-        result = static_cast<OrderType>(static_cast<uint8_t>(type) | OrderTypeBits::Market);
+        return OrderType::MARKET;
     } else {
-        result = static_cast<OrderType>(static_cast<uint8_t>(type) | OrderTypeBits::Limit);
+        return OrderType::LIMIT;
     }
-    return static_cast<OrderType>(static_cast<uint8_t>(result) | OrderTypeBits::Triggered);
 }
 
 struct OrderId {

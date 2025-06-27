@@ -356,10 +356,6 @@ private:
                 CASE(TRAILING_STOP);
                 CASE(STOP_LIMIT);
                 CASE(TRAILING_STOP_LIMIT);
-                CASE(TRIGGERED_STOP);
-                CASE(TRIGGERED_STOP_LIMIT);
-                CASE(TRIGGERED_TRAILING_STOP);
-                CASE(TRIGGERED_TRAILING_STOP_LIMIT);
                 default: assert(false && "Invalid order type");
             }
         };

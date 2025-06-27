@@ -80,18 +80,6 @@ auto& operator<<(auto& s, OrderType type) {
         case OrderType::TRAILING_STOP_LIMIT:
             s << "Trailing Stop Limit";
             break;
-        case OrderType::TRIGGERED_STOP:
-            s << "Market (triggered stop)";
-            break;
-        case OrderType::TRIGGERED_STOP_LIMIT:
-            s << "Limit (triggered stop limit)";
-            break;
-        case OrderType::TRIGGERED_TRAILING_STOP:
-            s << "Market (triggered trailing stop)";
-            break;
-        case OrderType::TRIGGERED_TRAILING_STOP_LIMIT:
-            s << "Limit (triggered trailing stop limit)";
-            break;
         default:
             s << "Unknown";
     }
