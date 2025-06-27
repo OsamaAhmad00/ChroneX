@@ -268,6 +268,11 @@ public:
     }
 
     template <OrderType type, OrderSide side, typename T>
+    constexpr void replace_order(OrderBook& orderbook, OrderIterator order_it, T level_it, OrderId new_id, Price new_price, Quantity new_quantity) noexcept {
+        return replace_order<type, side>(orderbook, order_it, level_it, order_it->clone(new_id.value, new_price.value, new_quantity.value));
+    }
+
+    template <OrderType type, OrderSide side, typename T>
     constexpr void replace_order(OrderBook& orderbook, OrderIterator order_it, T level_it, Order new_order) noexcept {
         // Replace atomically. Since the matching engine is single-threaded,
         //  it can do it by performing remove then add, without worrying
@@ -275,7 +280,9 @@ public:
         // TODO have the event handler report replacement instead of removal and addition
         remove_order<type, side>(orderbook, order_it, level_it);
         // TODO pass the orderbook and possibly the level
-        add_order<type, side>(std::move(new_order));
+
+        // We don't know the type and side of the new order
+        add_order(std::move(new_order));
     }
 
 # define ADD_BY_ID_METHOD(OP_NAME) \
