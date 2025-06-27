@@ -80,6 +80,8 @@ struct Order {
 
     constexpr void set_time_in_force(TimeInForce time_in_force) noexcept { _time_in_force = time_in_force; }
 
+    constexpr void set_leaves_quantity(const Quantity quantity) noexcept { _leaves_quantity = quantity; }
+
     constexpr void reduce_quantity(const Quantity quantity) noexcept {
         assert(quantity <= _leaves_quantity && "Trying to reduce more quantity than the order has left");
         _leaves_quantity -= quantity;
