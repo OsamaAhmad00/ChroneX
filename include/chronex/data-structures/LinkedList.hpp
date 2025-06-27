@@ -63,9 +63,9 @@ class LinkedList : private Allocator<LinkedListNode<T>> {
 
         constexpr explicit Iterator(NodeType* node) noexcept : _node(node) { }
 
-        template <typename OtherNode, typename OtherNext, typename OtherPrev>
-        explicit constexpr Iterator(const Iterator<OtherNode, OtherNext, OtherPrev>& it) noexcept
-            : _node(it.node) { }
+        template<std::convertible_to<NodeType> OtherNodeType, typename OtherNext, typename OtherPrev>
+        constexpr Iterator(const Iterator<OtherNodeType, OtherNext, OtherPrev>& other) noexcept
+            : _node(other._node) { }
 
         constexpr bool is_null() const noexcept { return _node == nullptr; };
 

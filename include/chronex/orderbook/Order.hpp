@@ -187,7 +187,7 @@ struct Order {
     }
 
     constexpr static Order trailing_stop_limit(uint64_t id, uint32_t symbol_id, OrderSide side, uint64_t stop_price, uint64_t price, uint64_t quantity, TrailingDistance trailing_distance, TimeInForce tif = TimeInForce::GTC, uint64_t max_visible_quantity = Quantity::max().value) noexcept {
-        return Order{ id, symbol_id, OrderType::TRIGGERED_TRAILING_STOP_LIMIT, side, tif, quantity, max_visible_quantity, price, stop_price, Price::invalid().value, trailing_distance };
+        return Order{ id, symbol_id, OrderType::TRAILING_STOP_LIMIT, side, tif, quantity, max_visible_quantity, price, stop_price, Price::invalid().value, trailing_distance };
     }
     constexpr static Order trailing_buy_stop_limit(uint64_t id, uint32_t symbol_id, uint64_t stop_price, uint64_t price, uint64_t quantity, TrailingDistance trailing_distance, TimeInForce tif = TimeInForce::GTC, uint64_t max_visible_quantity = Quantity::max().value) noexcept {
         return trailing_stop_limit(id, symbol_id, OrderSide::BUY, stop_price, price, quantity, trailing_distance, tif, max_visible_quantity);
