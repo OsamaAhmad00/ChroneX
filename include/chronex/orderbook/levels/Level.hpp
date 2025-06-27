@@ -72,23 +72,15 @@ private:
         return orders.emplace_back(std::move(order));
     }
 
-    [[nodiscard]] constexpr auto execute_quantity(iterator it, Quantity quantity) {
-        // reduce_quantity might delete and invalidate the iterator
-        it->increase_filled_quantity(quantity);
-        return reduce_order(it, quantity);
-    }
-
-    [[nodiscard]] constexpr auto reduce_order(iterator it, Quantity quantity) {
-        assert(total_volume() >= quantity && "Trying to reduce more quantity than the level has");
-
-        if (quantity == it->leaves_quantity()) {
+    [[nodiscard]] constexpr auto modify_order(iterator it, Quantity quantity) {
+        if (quantity == Quantity{ 0 }) {
             return remove_order(it);
         }
 
         auto old_visible = it->visible_quantity();
         auto old_hidden = it->hidden_quantity();
 
-        it->execute_quantity(quantity);
+        it->set_leaves_quantity(quantity);
 
         _visible_volume -= (old_visible - it->visible_quantity());
         _hidden_volume -= (old_hidden - it->hidden_quantity());
