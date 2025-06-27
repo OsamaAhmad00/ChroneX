@@ -188,7 +188,7 @@ public:
 
     template <OrderSide side>
     constexpr Price calculate_trailing_stop_price(Order& order) noexcept {
-        auto market_price = get_market_price<opposite_side<side>()>();
+        auto market_price = get_market_trailing_stop_price<opposite_side<side>()>();
         auto old_price = order.stop_price();
         return order.trailing_distance().template trailing_limit<side>(old_price, market_price);
     }
