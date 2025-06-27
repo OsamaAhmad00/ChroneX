@@ -239,7 +239,7 @@ public:
 
     template <OrderType type, OrderSide side, typename T>
     constexpr void modify_order(OrderBook& orderbook, OrderIterator order_it, T level_it, const Quantity leaves_quantity, const Price price, const bool mitigate) noexcept {
-        level_it->unlink_order(order_it);
+        orderbook.template unlink_order<type, side>(order_it, level_it);
         order_it->set_leaves_quantity(leaves_quantity);
         order_it->set_price(price);
 
