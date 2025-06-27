@@ -525,4 +525,116 @@ TEST_F(MatchingEngineTest, ManualMatching) {
     EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{ 0 })), std::make_pair(60, 65));
 }
 
+TEST_F(MatchingEngineTest, ComplexMatchingMultipleOrderTypesEdgeCases) {
+    // Step 1: Populate orderbook with a large number of limit orders across multiple price levels
+    matching_engine.add_order(Order::buy_limit(1, 0, 10, 100));
+    matching_engine.add_order(Order::buy_limit(2, 0, 10, 50));
+    matching_engine.add_order(Order::buy_limit(3, 0, 15, 75));
+    matching_engine.add_order(Order::buy_limit(4, 0, 15, 25, TimeInForce::AON));
+    matching_engine.add_order(Order::buy_limit(5, 0, 20, 200, TimeInForce::GTC, 50));
+    matching_engine.add_order(Order::buy_limit(6, 0, 20, 100));
+    matching_engine.add_order(Order::buy_limit(7, 0, 25, 150));
+    matching_engine.add_order(Order::buy_limit(8, 0, 25, 50, TimeInForce::FOK));
+    matching_engine.add_order(Order::buy_limit(9, 0, 30, 300));
+    matching_engine.add_order(Order::buy_limit(10, 0, 30, 100, TimeInForce::IOC));
+    matching_engine.add_order(Order::sell_limit(11, 0, 35, 100));
+    matching_engine.add_order(Order::sell_limit(12, 0, 35, 50));
+    matching_engine.add_order(Order::sell_limit(13, 0, 40, 75));
+    matching_engine.add_order(Order::sell_limit(14, 0, 40, 25, TimeInForce::AON));
+    matching_engine.add_order(Order::sell_limit(15, 0, 45, 200, TimeInForce::GTC, 50));
+    matching_engine.add_order(Order::sell_limit(16, 0, 45, 100));
+    matching_engine.add_order(Order::sell_limit(17, 0, 50, 150));
+    matching_engine.add_order(Order::sell_limit(18, 0, 50, 50, TimeInForce::FOK));
+    matching_engine.add_order(Order::sell_limit(19, 0, 55, 300));
+    matching_engine.add_order(Order::sell_limit(20, 0, 55, 100, TimeInForce::IOC));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(8, 8));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(1000, 1000));
+    EXPECT_EQ(visible_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(850, 850));
+
+    // Step 2: Add stop orders and trailing stop orders
+    matching_engine.add_order(Order::buy_stop(21, 0, 50, 100));
+    matching_engine.add_order(Order::sell_stop(22, 0, 15, 100));
+    matching_engine.add_order(Order::trailing_buy_stop(23, 0, 1000, 200, TrailingDistance::from_percentage_units(200, 10)));
+    matching_engine.add_order(Order::trailing_sell_stop_limit(24, 0, 0, 150, 150, TrailingDistance::from_percentage_units(-1000, -500)));
+    EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(2, 2));
+    EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(300, 250));
+    EXPECT_EQ(matching_engine.order_at(OrderId{23})->stop_price().value, 1000);
+    EXPECT_EQ(matching_engine.order_at(OrderId{24})->stop_price().value, 0);
+    EXPECT_EQ(matching_engine.order_at(OrderId{24})->price().value, 150);
+
+    // Step 3: Execute market orders to trigger matches and stop orders
+    matching_engine.add_order(Order::sell_market(25, 0, 400));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(7, 8));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(600, 1000));
+    EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(2, 2));
+    EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(300, 250));
+
+    // Step 4: Add aggressive limit orders to trigger further matches
+    matching_engine.add_order(Order::sell_limit(26, 0, 15, 500, TimeInForce::IOC));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(1, 9));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(50, 1150));
+
+    // Step 5: Modify trailing stop orders by moving market prices
+    matching_engine.add_order(Order::buy_limit(27, 0, 60, 100));
+    matching_engine.add_order(Order::sell_market(28, 0, 50));
+    EXPECT_EQ(matching_engine.order_at(OrderId{23})->stop_price().value, 235);
+    EXPECT_EQ(matching_engine.order_at(OrderId{24})->stop_price().value, 0);
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 8));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 1050));
+    EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(2, 0));
+    EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(300, 0));
+
+    // Step 6: Test order modification and replacement
+    matching_engine.modify_order(OrderId{15}, Price{35}, Quantity{150});
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 8));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 1000));
+    matching_engine.replace_order(OrderId{17}, Order::buy_limit(30, 0, 35, 100, TimeInForce::AON));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 6));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 750));
+
+    // Step 7: Test mitigation with a large volume
+    matching_engine.mitigate_order(OrderId{19}, Price{55}, Quantity{400});
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 6));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 850));
+
+    // Step 8: Test manual matching
+    matching_engine.disable_matching();
+    matching_engine.add_order(Order::buy_limit(31, 0, 55, 500));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(1, 6));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(500, 850));
+    matching_engine.match();
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 2));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 250));
+
+    // Step 9: Test edge case - Empty market with stop orders
+    matching_engine.remove_order(OrderId{19});
+    matching_engine.remove_order(OrderId{24});
+    matching_engine.remove_order(OrderId{23});
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 0));
+    matching_engine.add_order(Order::buy_stop(32, 0, 60, 100));
+    matching_engine.add_order(Order::sell_stop_limit(33, 0, 10, 100, 100));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 0));
+    EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(1, 1));
+    matching_engine.add_order(Order::buy_market(34, 0, 50));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 0));
+    EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(1, 1));
+
+    // Step 10: Test edge case - Large volume FOK order
+    matching_engine.enable_matching();
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 1));
+    EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 0));
+
+    matching_engine.add_order(Order::buy_limit(35, 0, 10, 1000, TimeInForce::FOK));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 1));
+    EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 0));
+
+    // Step 11: Final cleanup and verification
+    matching_engine.remove_order(OrderId{33});
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 0));
+    EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 0));
+    EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 0));
+}
+
 }

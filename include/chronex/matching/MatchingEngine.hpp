@@ -710,6 +710,7 @@ private:
         orderbook.template unlink_order<type, side>(order_it, level_it);
 
         order_it->template mark_triggered<type>();
+        order_it->set_stop_price(Price{ 0 });  // TODO remove this?
 
         event_handler().template on_trigger_stop_order<type, side>(orderbook, *order_it);
 
