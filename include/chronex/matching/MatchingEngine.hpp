@@ -220,6 +220,7 @@ public:
     constexpr void remove_order(OrderBook& orderbook, OrderIterator order_it, T level_it) noexcept {
         // This will do the reporting and the removal of the orders from the hash map if needed
         orderbook.template remove_order<type, side>(order_it, level_it);
+        perform_post_order_processing(orderbook);
     }
 
     template <OrderType type, OrderSide side, typename T>
