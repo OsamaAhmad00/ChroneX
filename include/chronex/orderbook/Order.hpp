@@ -73,7 +73,7 @@ struct Order {
     constexpr void mark_triggered() noexcept { _type = get_triggered<type>(); }
 
     constexpr void set_stop_and_trailing_stop_prices(const Price trailing_stop_price) noexcept {
-        const auto diff = price() - trailing_stop_price;
+        const auto diff = price() - _stop_price;
         _stop_price = trailing_stop_price;
         _price = trailing_stop_price + diff;
     }
