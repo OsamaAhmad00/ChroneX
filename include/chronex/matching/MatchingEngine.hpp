@@ -135,13 +135,13 @@ public:
         } else if constexpr (is_limit(type)) {
             return add_limit_order<side>(std::forward<T>(order));
         } else if constexpr (type == OrderType::STOP) {
-            return add_stop_order<OrderType::STOP, side>(std::forward<T>(order));
+            return add_stop_order<type, side>(std::forward<T>(order));
         } else if constexpr (type == OrderType::TRAILING_STOP) {
-            return add_stop_order<OrderType::TRAILING_STOP, side>(std::forward<T>(order));
+            return add_stop_order<type, side>(std::forward<T>(order));
         } else if constexpr (type == OrderType::STOP_LIMIT) {
-            return add_stop_limit_order<OrderType::STOP_LIMIT, side>(std::forward<T>(order));
+            return add_stop_limit_order<type, side>(std::forward<T>(order));
         } else if constexpr (type == OrderType::TRAILING_STOP_LIMIT) {
-            return add_stop_limit_order<OrderType::TRAILING_STOP_LIMIT, side>(std::forward<T>(order));
+            return add_stop_limit_order<type, side>(std::forward<T>(order));
         } else {
             assert(false && "Wrong order type to use here");
         }
