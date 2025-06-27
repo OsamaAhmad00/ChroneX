@@ -310,6 +310,14 @@ public:
 
     ADD_BY_ID_METHOD(replace_order);
 
+    void modify_order(OrderId id, Price new_price, Quantity new_quantity) {
+        return modify_order(id, new_quantity, new_price, false);
+    }
+
+    void mitigate_order(OrderId id, Price new_price, Quantity new_quantity) {
+        return modify_order(id, new_quantity, new_price, true);
+    }
+
     constexpr void execute_order(const OrderId id, const Quantity quantity, Price price) noexcept {
         return execute_order<false>(id, quantity, price);
     }
@@ -666,7 +674,7 @@ private:
                 trigger_stop_order<OrderType::TRAILING_STOP, level_side>(orderbook, order_it, level_it);
             } else if (is_equal<OrderType::STOP_LIMIT>(t)) {
                 trigger_stop_limit_order<OrderType::STOP_LIMIT, level_side>(orderbook, order_it, level_it);
-            } else if (is_equal<OrderType::TRIGGERED_TRAILING_STOP_LIMIT>(t)) {
+            } else if (is_equal<OrderType::TRAILING_STOP_LIMIT>(t)) {
                 trigger_stop_limit_order<OrderType::TRAILING_STOP_LIMIT, level_side>(orderbook, order_it, level_it);
             } else {
                 assert(false && "Unsupported order type");
