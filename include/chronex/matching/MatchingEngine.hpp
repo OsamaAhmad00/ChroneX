@@ -873,21 +873,21 @@ private:
             if (new_trailing_price >= old_trailing_price) return;
         }
 
-        auto& levels = orderbook.template levels<OrderType::TRAILING_STOP, side>();
-        auto prev_level_it = levels.begin();
+        constexpr auto opposite = opposite_side<side>();
+        auto& levels = orderbook.template levels<OrderType::TRAILING_STOP, opposite>();
         for (auto level_it = levels.begin(); level_it != levels.end(); ) {
             bool updated = false;
             auto& [price, level] = *level_it;
-            for (auto order_it = level.begin(); order_it != level.end(); ) {
-                // TODO do it cleaner
-                auto next_it = order_it;
-                ++next_it;
+            auto order_it = level.begin();
+            auto size = level.size();
+            while (size--) {
+                auto next_it = std::next(order_it);
 
                 auto old_stop_price = order_it->stop_price();
-                auto new_stop_price = orderbook.template calculate_trailing_stop_price<side>(*order_it);
+                auto new_stop_price = orderbook.template calculate_trailing_stop_price<opposite>(*order_it);
 
                 if (new_stop_price != old_stop_price) {
-                    orderbook.template unlink_order<OrderType::TRAILING_STOP, side>(order_it);
+                    orderbook.template unlink_order<OrderType::TRAILING_STOP, opposite>(order_it);
 
                     // TODO can we make this check a compile time check, or at least get rid of the conditional?
                     if (order_it->type() == OrderType::TRAILING_STOP) {
@@ -900,9 +900,11 @@ private:
                         assert(false && "Unsupported order type");
                     }
 
-                    orderbook.template link_order<OrderType::TRAILING_STOP, side>(order_it);
+                    // The unlinking can remove the current level, invalidating the iterator. Here,
+                    //  we get the newly inserted level, or the same level if it's not removed
+                    level_it = orderbook.template link_order<OrderType::TRAILING_STOP, opposite>(order_it);
 
-                    event_handler().template on_update_stop_price<side>(orderbook, *order_it);
+                    event_handler().template on_update_stop_price<opposite>(orderbook, *order_it);
 
                     updated = true;
                 }
@@ -911,11 +913,10 @@ private:
             }
 
             if (updated) {
-                level_it = prev_level_it;
+                // TODO get rid of this conditional
+                level_it = level_it == levels.begin() ? level_it : std::prev(level_it);
             } else {
-                // TODO should we really do it this way?
-                prev_level_it = level_it;
-                ++level_it;
+                level_it = std::next(level_it);
             }
         }
     }
