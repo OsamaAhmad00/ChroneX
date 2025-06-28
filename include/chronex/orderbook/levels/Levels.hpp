@@ -75,7 +75,7 @@ public:
 
     template <typename Iter>
     constexpr auto reduce_order(OrderIterator order_it, Iter level_it, Quantity quantity) noexcept {
-        return modify_order(order_it, level_it, order_it->price(), quantity);
+        return modify_order(order_it, level_it, quantity);
     }
 
     template <typename Iter>

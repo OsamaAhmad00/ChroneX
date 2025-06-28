@@ -2,7 +2,6 @@
 
 #include <cassert>
 #include <cstdint>
-#include <compare>
 #include <functional>
 #include <limits>
 
@@ -123,7 +122,7 @@ struct TrailingDistance {
     */
 
     constexpr static TrailingDistance from_price(const Price distance, const Price step) noexcept {
-        return TrailingDistance { cast(distance.value), cast(step.value) };
+        return TrailingDistance { int64(distance.value), int64(step.value) };
     }
 
     constexpr static TrailingDistance from_percentage_units(const ValueType distance, const ValueType step) noexcept {
@@ -132,8 +131,8 @@ struct TrailingDistance {
 
     constexpr static TrailingDistance from_percentage(const double distance, const double step) noexcept {
         assert(distance >= 0 && distance <= 100 && step >= 0 && step <= 100);
-        int64_t a = cast(distance * 100);
-        int64_t b = cast(step * 100);
+        int64_t a = int64(distance * 100);
+        int64_t b = int64(step * 100);
         return from_percentage_units(a, b);
     }
 
@@ -149,17 +148,18 @@ struct TrailingDistance {
         ValueType diff = distance;
         ValueType trailing_step = step;
         if (is_percentage()) {
-            diff = -distance * cast(market_price.value) / 10'000;
-            trailing_step = -step * cast(market_price.value) / 10'000;
+            diff = -distance * int64(market_price.value) / 10'000;
+            trailing_step = -step * int64(market_price.value) / 10'000;
         }
 
         // TODO can signs or casts here cause any problem?
+        auto old_val = uint64(old_price.value);
         if constexpr (side == OrderSide::BUY) {
             auto new_price = clipping_add(market_price.value, static_cast<uint64_t>(diff));
-            return (old_price.value > new_price && old_price.value - new_price >= trailing_step) ? Price{ new_price } : old_price;
+            return (old_val > new_price && old_val - new_price >= uint64(trailing_step)) ? Price{ new_price } : old_price;
         } else {
             auto new_price = clipping_sub(market_price.value, static_cast<uint64_t>(diff));
-            return (new_price > old_price.value && new_price - old_price.value >= trailing_step) ? Price{ new_price } : old_price;
+            return (new_price > old_val && new_price - old_val >= uint64(trailing_step)) ? Price{ new_price } : old_price;
         }
     }
 
@@ -169,8 +169,8 @@ struct TrailingDistance {
         // Without a reference price, we can't directly compare them.
 
         // If both are the same type (both absolute or both percentage), direct comparison works
-        assert((is_absolute() && other.is_absolute()) ||
-            (is_percentage() && other.is_percentage()) && "Can't compare different types of trailing offsets");
+        assert(((is_absolute() && other.is_absolute()) ||
+            (is_percentage() && other.is_percentage())) && "Can't compare different types of trailing offsets");
 
         return distance <=> other.distance;
     }
@@ -184,10 +184,11 @@ struct TrailingDistance {
 
 private:
 
-    static constexpr ValueType cast(auto num) noexcept { return static_cast<ValueType>(num); }
+    static constexpr int64_t int64(auto num) noexcept { return static_cast<int64_t>(num); }
+    static constexpr uint64_t uint64(auto num) noexcept { return static_cast<uint64_t>(num); }
 
-    constexpr explicit TrailingDistance(const ValueType distance, const ValueType step) noexcept
-        : distance(distance), step(step) { }
+    constexpr explicit TrailingDistance(const ValueType _distance, const ValueType _step) noexcept
+        : distance(_distance), step(_step) { }
 };
 
 constexpr bool is_market(const OrderType type) noexcept {

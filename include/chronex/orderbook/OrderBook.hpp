@@ -116,7 +116,7 @@ public:
 
     template <OrderType type, OrderSide side, typename T>
     constexpr auto reduce_order(OrderIterator order_it, T level_it, Quantity quantity) noexcept {
-        return levels<type, side>().template reduce_order<type, side>(order_it, level_it, quantity);
+        return levels<type, side>().reduce_order(order_it, level_it, quantity);
     }
 
     template <OrderType type, OrderSide side, typename T>

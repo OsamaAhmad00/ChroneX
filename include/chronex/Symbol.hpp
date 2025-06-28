@@ -15,25 +15,25 @@ struct SymbolId {
 };
 
 struct Symbol {
-    constexpr Symbol(SymbolId id, const char* name) : id(id), name{ } {
+    constexpr Symbol(SymbolId _id, const char* _name) : id(_id), name{ } {
         // TODO should we store the null terminator? This makes
         //  it convenient for using it as a cstr, but we already
         //  know that it has a certain size
         int size = sizeof(this->name) - 1;
         int i = 0;
-        while (i < size && name[i] != '\0') {
-            this->name[i] = name[i];
+        while (i < size && _name[i] != '\0') {
+            this->name[i] = _name[i];
             i++;
         }
         this->name[size] = '\0';
-        assert(name[i] == '\0' && "Symbol name exceeds the expected size");
+        assert(_name[i] == '\0' && "Symbol name exceeds the expected size");
     }
 
-    constexpr Symbol(uint32_t id, const char* name) : Symbol(SymbolId{ id }, name) { }
+    constexpr Symbol(uint32_t _id, const char* _name) : Symbol(SymbolId{ _id }, _name) { }
 
-    constexpr Symbol(SymbolId id, std::string_view name) : Symbol(id, name.data()) { }
+    constexpr Symbol(SymbolId _id, std::string_view _name) : Symbol(_id, _name.data()) { }
 
-    constexpr Symbol(uint32_t id, std::string_view name) : Symbol(id, name.data()) { }
+    constexpr Symbol(uint32_t _id, std::string_view _name) : Symbol(_id, _name.data()) { }
 
     constexpr static Symbol invalid() noexcept { return Symbol { SymbolId::invalid(), "" }; }
 

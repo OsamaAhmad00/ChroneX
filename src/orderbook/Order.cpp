@@ -23,7 +23,7 @@ bool Order::is_valid() const noexcept {
     // assert(leaves_quantity() > Quantity { 0 } && "Order leaves quantity must be greater than zero!");
 
     if (is_market_order()) {
-        assert(is_ioc() || is_fok() && "Market order must have 'Immediate-Or-Cancel' or 'Fill-Or-Kill' parameter!");
+        assert((is_ioc() || is_fok()) && "Market order must have 'Immediate-Or-Cancel' or 'Fill-Or-Kill' parameter!");
         assert(!is_iceberg() && "Market order cannot be 'Iceberg'!");
     }
 
