@@ -95,35 +95,9 @@ public:
 
     template <concepts::Order T>
     constexpr void add_order(T&& order) {
-        if (order.is_buy_order()) {
-            add_order<OrderSide::BUY> (std::forward<T>(order));
-        } else {
-            add_order<OrderSide::SELL>(std::forward<T>(order));
-        }
-    }
-
-    template <OrderSide side, concepts::Order T>
-    constexpr void add_order(T&& order) {
-        // Triggered types shouldn't be passed to this function.
-        //  This function resolves newly added orders. Being
-        //  triggered means it was just being processed,
-        //  and the type information should be present by now.
-        switch (order.type()) {
-            case OrderType::MARKET:
-                return add_order<OrderType::MARKET, side>(std::forward<T>(order));
-            case OrderType::LIMIT:
-                return add_order<OrderType::LIMIT, side>(std::forward<T>(order));
-            case OrderType::STOP:
-                return add_order<OrderType::STOP, side>(std::forward<T>(order));
-            case OrderType::TRAILING_STOP:
-                return add_order<OrderType::TRAILING_STOP, side>(std::forward<T>(order));
-            case OrderType::STOP_LIMIT:
-                return add_order<OrderType::STOP_LIMIT, side>(std::forward<T>(order));
-            case OrderType::TRAILING_STOP_LIMIT:
-                return add_order<OrderType::TRAILING_STOP_LIMIT, side>(std::forward<T>(order));
-            default:
-                assert(false && "Wrong order type to use here");
-        }
+        return resolve_type_and_side_then_call(order, [&]<OrderType type, OrderSide side> {
+            return add_order<type, side>(std::forward<T>(order));
+        });
     }
 
     template <OrderType type, OrderSide side, concepts::Order T>
