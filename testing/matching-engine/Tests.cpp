@@ -637,4 +637,278 @@ TEST_F(MatchingEngineTest, ComplexMatchingMultipleOrderTypesEdgeCases) {
     EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 0));
 }
 
+TEST_F(MatchingEngineTest, ChainReactionOfStopOrders) {
+    // Step 1: Populate order book with limit orders
+    matching_engine.add_order(Order::buy_limit(1, 0, 100, 200));
+    matching_engine.add_order(Order::buy_limit(2, 0, 95, 150));
+    matching_engine.add_order(Order::sell_limit(3, 0, 110, 200));
+    matching_engine.add_order(Order::sell_limit(4, 0, 115, 150));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(2, 2));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(350, 350));
+
+    // Step 2: Add stop orders to create a chain reaction
+    matching_engine.add_order(Order::sell_stop(5, 0, 100, 100));
+    matching_engine.add_order(Order::buy_stop(6, 0, 115, 100));
+    matching_engine.add_order(Order::sell_stop(7, 0, 95, 50));
+    matching_engine.add_order(Order::buy_stop(8, 0, 120, 50));
+    EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(2, 1));
+    EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(150, 50));
+
+    // Step 3: Trigger chain with a large market sell order
+    matching_engine.add_order(Order::sell_market(9, 0, 300));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 2));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 350));
+    EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(2, 0));
+    EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(150, 0));
+}
+
+TEST_F(MatchingEngineTest, HiddenOrdersWithPartialMatching) {
+    // Step 1: Add hidden and visible limit orders
+    matching_engine.add_order(Order::buy_limit(1, 0, 100, 200, TimeInForce::GTC, 50));
+    matching_engine.add_order(Order::buy_limit(2, 0, 95, 100));
+    matching_engine.add_order(Order::sell_limit(3, 0, 110, 200, TimeInForce::GTC, 50));
+    matching_engine.add_order(Order::sell_limit(4, 0, 115, 100));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(2, 2));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(300, 300));
+    EXPECT_EQ(visible_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(150, 150));
+
+    // Step 2: Add market order to match against hidden orders
+    matching_engine.add_order(Order::sell_market(5, 0, 250));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(1, 2));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(50, 300));
+    EXPECT_EQ(visible_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(50, 150));
+
+    // Step 3: Add aggressive limit order to match remaining hidden volume
+    matching_engine.add_order(Order::sell_limit(6, 0, 95, 100));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 3));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 350));
+    EXPECT_EQ(visible_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 200));
+}
+
+TEST_F(MatchingEngineTest, AONAndFOKInVolatileMarket) {
+    // Step 1: Create volatile market with limit orders
+    matching_engine.add_order(Order::buy_limit(1, 0, 100, 100));
+    matching_engine.add_order(Order::sell_limit(2, 0, 110, 100));
+    matching_engine.add_order(Order::buy_market(3, 0, 50));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(1, 1));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(100, 50));
+
+    // Step 2: Add AON and FOK orders
+    matching_engine.add_order(Order::buy_limit(4, 0, 105, 75, TimeInForce::AON));
+    matching_engine.add_order(Order::sell_limit(5, 0, 105, 50, TimeInForce::FOK));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(2, 1));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(175, 50));
+
+    // Step 3: Move market price to test AON/FOK behavior
+    matching_engine.add_order(Order::sell_market(6, 0, 100));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(1, 1));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(75, 50));
+}
+
+TEST_F(MatchingEngineTest, TrailingStopOrdersInTrendingMarket) {
+    // Step 1: Set up initial market
+    matching_engine.add_order(Order::buy_limit(1, 0, 100, 100));
+    matching_engine.add_order(Order::sell_limit(2, 0, 110, 100));
+    matching_engine.add_order(Order::buy_market(3, 0, 50));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(1, 1));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(100, 50));
+
+    // Step 2: Add trailing stop orders
+    matching_engine.add_order(Order::trailing_buy_stop(4, 0, 1000, 100, TrailingDistance::from_percentage_units(100, 10)));
+    matching_engine.add_order(Order::trailing_sell_stop_limit(5, 0, 0, 100, 100, TrailingDistance::from_percentage_units(-1000, -500)));
+    EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(1, 1));
+    EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(100, 100));
+    EXPECT_EQ(matching_engine.order_at(OrderId{4})->stop_price().value, 210);
+    EXPECT_EQ(matching_engine.order_at(OrderId{5})->stop_price().value, 90);
+
+    // Step 3: Simulate upward trend
+    matching_engine.add_order(Order::buy_limit(6, 0, 120, 100));
+    matching_engine.add_order(Order::sell_market(7, 0, 50));
+    EXPECT_EQ(matching_engine.order_at(OrderId{5})->stop_price().value, 99);
+}
+
+TEST_F(MatchingEngineTest, OrderModificationDuringMatching) {
+    // Step 1: Populate order book
+    matching_engine.add_order(Order::buy_limit(1, 0, 100, 200));
+    matching_engine.add_order(Order::sell_limit(2, 0, 110, 200));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(1, 1));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(200, 200));
+
+    // Step 2: Add aggressive order and modify existing order
+    matching_engine.add_order(Order::sell_limit(3, 0, 100, 150));
+    matching_engine.modify_order(OrderId{1}, Price{100}, Quantity{100});
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(1, 1));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(100, 200));
+}
+
+TEST_F(MatchingEngineTest, OrderReplacementWithTypeChange) {
+    // Step 1: Populate order book
+    matching_engine.add_order(Order::buy_limit(1, 0, 100, 200));
+    matching_engine.add_order(Order::sell_limit(2, 0, 110, 200));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(1, 1));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(200, 200));
+
+    // Step 2: Replace limit order with stop order
+    matching_engine.replace_order(OrderId{1}, Order::buy_stop(3, 0, 110, 100));
+    matching_engine.add_order(Order::sell_limit(4, 0, 110, 150));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 2));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 250));
+    EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 0));
+}
+
+TEST_F(MatchingEngineTest, MitigationWithLargeOrders) {
+    // Step 1: Add large orders
+    matching_engine.add_order(Order::buy_limit(1, 0, 100, 1000));
+    matching_engine.add_order(Order::sell_limit(2, 0, 110, 1000));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(1, 1));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(1000, 1000));
+
+    // Step 2: Mitigate orders
+    matching_engine.mitigate_order(OrderId{1}, Price{100}, Quantity{500});
+    matching_engine.mitigate_order(OrderId{2}, Price{110}, Quantity{500});
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(1, 1));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(500, 500));
+}
+
+TEST_F(MatchingEngineTest, IOCAndFOKInThinMarket) {
+    // Step 1: Create thin market
+    matching_engine.add_order(Order::buy_limit(1, 0, 100, 50));
+    matching_engine.add_order(Order::sell_limit(2, 0, 110, 50));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(1, 1));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(50, 50));
+
+    // Step 2: Add IOC and FOK orders
+    matching_engine.add_order(Order::sell_limit(3, 0, 100, 100, TimeInForce::IOC));
+    matching_engine.add_order(Order::buy_limit(4, 0, 110, 100, TimeInForce::FOK));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 1));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 50));
+}
+
+TEST_F(MatchingEngineTest, StopLimitOrdersWithPriceGaps) {
+    // Step 1: Create market with price gap
+    matching_engine.add_order(Order::buy_limit(1, 0, 100, 100));
+    matching_engine.add_order(Order::sell_limit(2, 0, 120, 100));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(1, 1));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(100, 100));
+
+    // Step 2: Add stop-limit orders
+    matching_engine.add_order(Order::sell_stop_limit(3, 0, 110, 100, 100));
+    matching_engine.add_order(Order::buy_stop_limit(4, 0, 110, 100, 110));
+    EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 0));
+    EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 0));
+
+    // Step 3: Trigger stop-limit with market order
+    matching_engine.add_order(Order::sell_market(5, 0, 150));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 1));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 100));
+    EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 0));
+}
+
+TEST_F(MatchingEngineTest, TimeInForceExpirationSimulation) {
+    // Step 1: Add orders with different time-in-force
+    matching_engine.add_order(Order::buy_limit(1, 0, 100, 100, TimeInForce::IOC));
+    matching_engine.add_order(Order::buy_limit(2, 0, 100, 100, TimeInForce::FOK));
+    matching_engine.add_order(Order::buy_limit(3, 0, 100, 100, TimeInForce::AON));
+    matching_engine.add_order(Order::buy_limit(4, 0, 100, 100, TimeInForce::GTC));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(2, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(200, 0));
+
+    // Step 2: Add sell order that partially matches
+    matching_engine.add_order(Order::sell_limit(5, 0, 100, 50));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(2, 1));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(200, 50));
+}
+
+TEST_F(MatchingEngineTest, ComplexOrderbookInteractions) {
+    // Step 1: Populate order book with a large number of limit orders
+    matching_engine.add_order(Order::buy_limit(1, 0, 90, 100));
+    matching_engine.add_order(Order::buy_limit(2, 0, 95, 150));
+    matching_engine.add_order(Order::buy_limit(3, 0, 100, 200, TimeInForce::GTC, 50)); // Hidden order
+    matching_engine.add_order(Order::buy_limit(4, 0, 105, 250));
+    matching_engine.add_order(Order::buy_limit(5, 0, 110, 300, TimeInForce::AON));
+    matching_engine.add_order(Order::buy_limit(6, 0, 115, 350, TimeInForce::IOC));
+    matching_engine.add_order(Order::buy_limit(7, 0, 120, 400, TimeInForce::FOK));
+    matching_engine.add_order(Order::sell_limit(8, 0, 125, 400));
+    matching_engine.add_order(Order::sell_limit(9, 0, 130, 350, TimeInForce::GTC, 50)); // Hidden order
+    matching_engine.add_order(Order::sell_limit(10, 0, 135, 300, TimeInForce::AON));
+    matching_engine.add_order(Order::sell_limit(11, 0, 140, 250, TimeInForce::IOC));
+    matching_engine.add_order(Order::sell_limit(12, 0, 145, 200, TimeInForce::FOK));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(5, 3));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(1000, 1050));
+    EXPECT_EQ(visible_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(850, 750));
+
+    // Step 2: Add stop and stop-limit orders
+    matching_engine.add_order(Order::sell_stop(13, 0, 100, 100));
+    matching_engine.add_order(Order::buy_stop(14, 0, 120, 100));
+    matching_engine.add_order(Order::sell_stop_limit(15, 0, 110, 50, 110));
+    matching_engine.add_order(Order::buy_stop_limit(16, 0, 115, 50, 115));
+    EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 1));
+    EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 100));
+
+    // Step 3: Add trailing stop orders
+    matching_engine.add_order(Order::trailing_buy_stop(17, 0, 1000, 100, TrailingDistance::from_percentage_units(100, 10)));
+    matching_engine.add_order(Order::trailing_sell_stop_limit(18, 0, 0, 100, 100, TrailingDistance::from_percentage_units(-1000, -500)));
+    EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(1, 2));
+    EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(100, 200));
+    EXPECT_EQ(matching_engine.order_at(OrderId{17})->stop_price().value, 225);
+    EXPECT_EQ(matching_engine.order_at(OrderId{18})->stop_price().value, 95);
+    EXPECT_EQ(matching_engine.order_at(OrderId{18})->price().value, 195);
+
+    // Step 4: Trigger matches with market orders
+    matching_engine.add_order(Order::sell_market(19, 0, 500));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(2, 4));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(215, 860));
+    EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(1, 0));
+    EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(100, 0));
+
+    // Step 5: Modify and replace orders
+    matching_engine.modify_order(OrderId{10}, Price{102}, Quantity{180});
+    matching_engine.replace_order(OrderId{18}, Order::buy_limit(20, 0, 108, 280, TimeInForce::GTC));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(3, 2));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(315, 460));
+
+    // Step 6: Mitigate orders
+    matching_engine.mitigate_order(OrderId{9}, Price{132}, Quantity{180});
+    matching_engine.mitigate_order(OrderId{8}, Price{125}, Quantity{200});
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(3, 1));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(315, 180));
+
+    // Step 7: Add aggressive limit orders
+    matching_engine.add_order(Order::sell_limit(21, 0, 98, 300, TimeInForce::IOC));
+    matching_engine.add_order(Order::buy_limit(22, 0, 132, 300, TimeInForce::FOK));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(2, 1));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(215, 180));
+
+    // Step 8: Simulate price gap and thin market
+    matching_engine.add_order(Order::sell_limit(23, 0, 150, 50));
+    matching_engine.add_order(Order::buy_stop(24, 0, 150, 100));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(2, 2));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(215, 230));
+    EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(2, 0));
+
+    // Step 9: Trigger stop orders with market order
+    matching_engine.add_order(Order::buy_market(25, 0, 400));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(2, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(215, 0));
+    EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 0));
+
+    // Step 10: Test manual matching
+    matching_engine.disable_matching();
+    matching_engine.add_order(Order::buy_limit(26, 0, 130, 500));
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(3, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(715, 0));
+    matching_engine.match();
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(3, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(715, 0));
+
+    // Step 11: Final cleanup and verification
+    matching_engine.remove_order(OrderId{16});
+    matching_engine.remove_order(OrderId{26});
+    matching_engine.remove_order(OrderId{1});
+    EXPECT_EQ(orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 0));
+    EXPECT_EQ(orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 0));
+    EXPECT_EQ(stop_orders_count(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 0));
+    EXPECT_EQ(stop_orders_volume(matching_engine.orderbook_at(SymbolId{0})), std::make_pair(0, 0));
+}
+
 }
