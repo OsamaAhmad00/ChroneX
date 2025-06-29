@@ -116,7 +116,15 @@ public:
 
     template <OrderType type, OrderSide side, typename T>
     constexpr auto reduce_order(OrderIterator order_it, T level_it, Quantity quantity) noexcept {
-        return levels<type, side>().reduce_order(order_it, level_it, quantity);
+        if (quantity == Quantity{ 0 }) {
+            event_handler().template on_remove_order<type, side>(*this, *order_it);
+            if (level_it->second.size() == 1) {
+                event_handler().template on_remove_level<type, side>(*this, level_it->first);
+            }
+            return levels<type, side>().remove_order(order_it, level_it, quantity);
+        } else {
+            return levels<type, side>().reduce_order(order_it, level_it, quantity);
+        }
     }
 
     template <OrderType type, OrderSide side, typename T>

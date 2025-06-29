@@ -198,17 +198,10 @@ public:
     }
 
     template <OrderType type, OrderSide side, typename T>
-    constexpr void reduce_order(OrderBook& orderbook, OrderIterator order_it, T level_it, const Quantity quantity) noexcept {
-        if (quantity == order_it->leaves_quantity()) {
-            return remove_order<type, side>(orderbook, order_it, level_it);
-        }
-
-        event_handler().template on_reduce_order<type, side>(orderbook, *order_it, quantity);
-
-        // TODO ignore return value?
-        orderbook.template reduce_order<type, side>(order_it, level_it, quantity);
-
+    constexpr auto reduce_order(OrderBook& orderbook, OrderIterator order_it, T level_it, const Quantity quantity) noexcept {
+        auto res = orderbook.template reduce_order<type, side>(order_it, level_it, quantity);
         perform_post_order_processing(orderbook);
+        return res;
     }
 
     template <OrderType type, OrderSide side, typename T>
