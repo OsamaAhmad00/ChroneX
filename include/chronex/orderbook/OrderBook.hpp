@@ -121,7 +121,7 @@ public:
             if (level_it->second.size() == 1) {
                 event_handler().template on_remove_level<type, side>(*this, level_it->first);
             }
-            return levels<type, side>().remove_order(order_it, level_it, quantity);
+            return levels<type, side>().remove_order(order_it, level_it);
         } else {
             return levels<type, side>().reduce_order(order_it, level_it, quantity);
         }
