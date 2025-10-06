@@ -54,28 +54,26 @@ int main() {
 ### Output
 ```text
 add_new_orderbook	GOOG
-add_level		(Limit,	Buy)		OrderBook { Symbol = GOOG }	Price = 100
-add_order		(Limit,	Buy)		OrderBook { Symbol = GOOG }	Order { ID = 3 }
-execute_order		(Limit,	Buy)		OrderBook { Symbol = GOOG }	Order { ID = 3 }	Quantity = 20	Price = 100
-execute_order		(Limit,	Sell)		OrderBook { Symbol = GOOG }	Order { ID = 4 }	Quantity = 20	Price = 100
-remove_order		(Limit,	Sell)		OrderBook { Symbol = GOOG }	Order { ID = 4 }
-execute_order		(Limit,	Buy)		OrderBook { Symbol = GOOG }	Order { ID = 3 }	Quantity = 80	Price = 100
-remove_order		(Limit,	Buy)		OrderBook { Symbol = GOOG }	Order { ID = 3 }
-remove_level		(Limit,	Buy)		OrderBook { Symbol = GOOG }	rice = 100
-execute_order		(Limit,	Sell)		OrderBook { Symbol = GOOG }	Order { ID = 5 }	Quantity = 80	Price = 100
-add_level		(Limit,	Sell)		OrderBook { Symbol = GOOG }	Price = 100
-add_order		(Limit,	Sell)		OrderBook { Symbol = GOOG }	Order { ID = 5 }
-add_level		(Limit,	Buy)		OrderBook { Symbol = GOOG }	Price = 42
-add_order		(Limit,	Buy)		OrderBook { Symbol = GOOG }	Order { ID = 2 }
-execute_order		(Limit,	Sell)		OrderBook { Symbol = GOOG }	Order { ID = 5 }	Quantity = 10	Price = 100
-reduce_order		(Limit,	Buy)		OrderBook { Symbol = GOOG }	Order { ID = 2 }	Quantity = 10
-remove_order		(Limit,	Buy)		OrderBook { Symbol = GOOG }	Order { ID = 2 }
-remove_level		(Limit,	Buy)		OrderBook { Symbol = GOOG }	rice = 42
-add_level		(Limit,	Buy)		OrderBook { Symbol = GOOG }	Price = 42
-add_order		(Limit,	Buy)		OrderBook { Symbol = GOOG }	Order { ID = 6 }
-add_level		(Limit,	Sell)		OrderBook { Symbol = GOOG }	Price = 42
-remove_order		(Limit,	Sell)		OrderBook { Symbol = GOOG }	Order { ID = 6 }
-remove_level		(Limit,	Sell)		OrderBook { Symbol = GOOG }	rice = 42
+add_level			(Limit, Buy)		OrderBook { Symbol = GOOG }	Price = 100
+add_order			(Limit, Buy)		OrderBook { Symbol = GOOG }	Order { ID = 3 }
+execute_order		(Limit, Buy)		OrderBook { Symbol = GOOG }	Order { ID = 3 }	Quantity = 20	Price = 100
+execute_order		(Limit, Sell)		OrderBook { Symbol = GOOG }	Order { ID = 4 }	Quantity = 20	Price = 100
+remove_order		(Limit, Sell)		OrderBook { Symbol = GOOG }	Order { ID = 4 }
+execute_order		(Limit, Buy)		OrderBook { Symbol = GOOG }	Order { ID = 3 }	Quantity = 80	Price = 100
+remove_order		(Limit, Buy)		OrderBook { Symbol = GOOG }	Order { ID = 3 }
+remove_level		(Limit, Buy)		OrderBook { Symbol = GOOG }	Price = 100
+execute_order		(Limit, Sell)		OrderBook { Symbol = GOOG }	Order { ID = 5 }	Quantity = 80	Price = 100
+add_level			(Limit, Sell)		OrderBook { Symbol = GOOG }	Price = 100
+add_order			(Limit, Sell)		OrderBook { Symbol = GOOG }	Order { ID = 5 }
+add_level			(Limit, Buy)		OrderBook { Symbol = GOOG }	Price = 42
+add_order			(Limit, Buy)		OrderBook { Symbol = GOOG }	Order { ID = 2 }
+execute_order		(Limit, Sell)		OrderBook { Symbol = GOOG }	Order { ID = 5 }	Quantity = 10	Price = 100
+remove_order		(Limit, Buy)		OrderBook { Symbol = GOOG }	Order { ID = 2 }
+remove_level		(Limit, Buy)		OrderBook { Symbol = GOOG }	Price = 42
+add_level			(Limit, Sell)		OrderBook { Symbol = GOOG }	Price = 42
+add_order			(Limit, Sell)		OrderBook { Symbol = GOOG }	Order { ID = 6 }
+remove_order		(Limit, Sell)		OrderBook { Symbol = GOOG }	Order { ID = 6 }
+remove_level		(Limit, Sell)		OrderBook { Symbol = GOOG }	Price = 42
 remove_orderbook	OrderBook { Symbol = GOOG }
 ```
 
